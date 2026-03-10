@@ -40,8 +40,7 @@ async function main() {
 
 main()
   .catch((error) => {
-    console.error(error);
-    process.exit(1);
+    console.error("Seed error (non-fatal):", error.message);
   })
   .finally(async () => {
     await prisma.$disconnect();
