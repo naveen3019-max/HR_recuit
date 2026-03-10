@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Mail, Lock, Brain, Loader2, AlertCircle } from "lucide-react";
+import { Mail, Lock, Brain, Loader2, AlertCircle, User } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const Login = () => {
@@ -9,6 +9,7 @@ const Login = () => {
   const [error, setError] = useState(null);
   
   const [formData, setFormData] = useState({
+    name: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -30,7 +31,7 @@ const Login = () => {
         if (formData.password !== formData.confirmPassword) {
           throw new Error("Passwords do not match");
         }
-        await register(formData.email, formData.password);
+        await register({ name: formData.name, email: formData.email, password: formData.password });
       } else {
         await login(formData.email, formData.password);
       }
@@ -76,6 +77,29 @@ const Login = () => {
               <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 text-red-700">
                 <AlertCircle className="w-5 h-5 shrink-0" />
                 <p className="text-sm">{error}</p>
+              </div>
+            )}
+
+            {/* Name (Sign Up only) */}
+            {isSignUp && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <User className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    placeholder="John Doe"
+                    className="input-field pl-12"
+                    required
+                  />
+                </div>
               </div>
             )}
 
