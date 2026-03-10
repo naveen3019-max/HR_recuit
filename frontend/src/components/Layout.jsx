@@ -51,7 +51,7 @@ const Layout = ({ children }) => {
 
             {/* User Menu */}
             <div className="flex items-center gap-2 sm:gap-4">
-              <span className="hidden sm:block text-sm text-gray-600 truncate max-w-[160px]">
+              <span className="hidden sm:block text-sm text-gray-600 truncate max-w-40">
                 {user?.email || "User"}
               </span>
               <button
