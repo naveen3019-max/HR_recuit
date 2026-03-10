@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  recruiter
+}
+
+model User {
+  id          Int           @id @default(autoincrement())
+  name        String
+  email       String        @unique
+  password    String
+  role        UserRole      @default(recruiter)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  notes       CandidateNote[]
+  activityLog ActivityLog[]
+}
+
+model RecruitmentStage {
+  id         Int         @id @default(autoincrement())
+  name       String      @unique
+  orderIndex Int
+  candidates Candidate[]
+}
+
+model Candidate {
+  id               Int            @id @default(autoincrement())
+  name             String
+  email            String?
+  phone            String?
+  linkedinUrl      String?
+  githubUrl        String?
+  currentCompany   String?
+  currentRole      String?
+  skills           String[]
+  experienceYears  Int
+  education        String?
+  location         String?
+  resumeUrl        String?
+  stageId          Int
+  summary          String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  stage            RecruitmentStage @relation(fields: [stageId], references: [id])
+  notes            CandidateNote[]
+  activityLog      ActivityLog[]
+
+  @@index([skills], type: Gin)
+  @@index([experienceYears])
+  @@index([location])
+}
+
+model CandidateNote {
+  id          Int       @id @default(autoincrement())
+  candidateId Int
+  userId      Int
+  note        String
+  createdAt   DateTime  @default(now())
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ActivityLog {
+  id          Int       @id @default(autoincrement())
+  action      String
+  metadata    Json?
+  userId      Int?
+  candidateId Int?
+  createdAt   DateTime  @default(now())
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  candidate   Candidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+}
