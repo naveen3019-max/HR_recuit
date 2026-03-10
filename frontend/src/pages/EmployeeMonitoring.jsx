@@ -13,14 +13,16 @@ import {
   Github,
   Briefcase,
   X,
-  Activity
+  Activity,
+  Lightbulb,
+  Zap
 } from "lucide-react";
 import api from "../services/api";
 
 const riskColors = {
-  High: { bg: "bg-red-50", text: "text-red-700", badge: "bg-red-100 text-red-700", icon: ShieldAlert },
-  Medium: { bg: "bg-yellow-50", text: "text-yellow-700", badge: "bg-yellow-100 text-yellow-700", icon: Shield },
-  Low: { bg: "bg-green-50", text: "text-green-700", badge: "bg-green-100 text-green-700", icon: ShieldCheck }
+  HIGH: { bg: "bg-red-50", text: "text-red-700", badge: "bg-red-100 text-red-700", icon: ShieldAlert },
+  MEDIUM: { bg: "bg-yellow-50", text: "text-yellow-700", badge: "bg-yellow-100 text-yellow-700", icon: Shield },
+  LOW: { bg: "bg-green-50", text: "text-green-700", badge: "bg-green-100 text-green-700", icon: ShieldCheck }
 };
 
 const EmployeeMonitoring = () => {
@@ -102,8 +104,8 @@ const EmployeeMonitoring = () => {
     );
   }
 
-  const highRisk = employees.filter((e) => e.risk_level === "High").length;
-  const mediumRisk = employees.filter((e) => e.risk_level === "Medium").length;
+  const highRisk = employees.filter((e) => e.risk_level === "HIGH").length;
+  const mediumRisk = employees.filter((e) => e.risk_level === "MEDIUM").length;
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -223,7 +225,7 @@ const EmployeeMonitoring = () => {
       ) : (
         <div className="space-y-4">
           {employees.map((emp) => {
-            const risk = riskColors[emp.risk_level] || riskColors.Low;
+            const risk = riskColors[emp.risk_level] || riskColors.LOW;
             const RiskIcon = risk.icon;
             const isAnalyzing = analyzingId === emp.id;
 
@@ -250,7 +252,7 @@ const EmployeeMonitoring = () => {
                     {emp.risk_score !== null && emp.risk_score !== undefined && (
                       <div className="text-center">
                         <p className={`text-3xl font-bold ${risk.text}`}>{emp.risk_score}</p>
-                        <p className="text-xs text-gray-500">Risk Score</p>
+                        <p className="text-xs text-gray-500">/ 100</p>
                       </div>
                     )}
                     <button
@@ -267,12 +269,38 @@ const EmployeeMonitoring = () => {
                   </div>
                 </div>
 
-                {/* Risk Reason */}
+                {/* AI Analysis Section */}
                 {emp.risk_reason && (
-                  <div className={`mt-4 p-3 rounded-lg ${risk.bg}`}>
+                  <div className={`mt-4 p-4 rounded-lg ${risk.bg} space-y-3`}>
                     <p className={`text-sm ${risk.text}`}>
-                      <strong>AI Assessment:</strong> {emp.risk_reason}
+                      <strong>AI Analysis:</strong> {emp.risk_reason}
                     </p>
+
+                    {/* Signals Detected */}
+                    {emp.signals_detected && emp.signals_detected.length > 0 && (
+                      <div>
+                        <p className={`text-xs font-semibold ${risk.text} flex items-center gap-1 mb-1.5`}>
+                          <Zap className="w-3 h-3" /> Signals Detected
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {emp.signals_detected.map((signal, idx) => (
+                            <span key={idx} className={`inline-block px-2 py-0.5 rounded text-xs ${risk.badge}`}>
+                              {signal}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Recommendation */}
+                    {emp.recommendation && (
+                      <div className="flex items-start gap-2 pt-2 border-t border-current/10">
+                        <Lightbulb className={`w-4 h-4 shrink-0 mt-0.5 ${risk.text}`} />
+                        <p className={`text-sm ${risk.text}`}>
+                          <strong>Recommendation:</strong> {emp.recommendation}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

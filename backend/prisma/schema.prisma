@@ -80,18 +80,20 @@ model ActivityLog {
 }
 
 model Employee {
-  id          Int       @id @default(autoincrement())
-  name        String
-  email       String    @unique
-  linkedinUrl String?
-  githubUrl   String?
-  currentRole String?
-  salary      Float?
-  riskScore   Float?
-  riskLevel   String?
-  riskReason  String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id              Int       @id @default(autoincrement())
+  name            String
+  email           String    @unique
+  linkedinUrl     String?
+  githubUrl       String?
+  currentRole     String?
+  salary          Float?
+  riskScore       Float?
+  riskLevel       String?
+  riskReason      String?
+  signalsDetected String[]
+  recommendation  String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }
 
 model JobRole {

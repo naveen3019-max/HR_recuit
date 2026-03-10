@@ -12,6 +12,8 @@ const normalizeEmployee = (emp) => ({
   risk_score: emp.riskScore,
   risk_level: emp.riskLevel,
   risk_reason: emp.riskReason,
+  signals_detected: emp.signalsDetected || [],
+  recommendation: emp.recommendation,
   created_at: emp.createdAt,
   updated_at: emp.updatedAt
 });
@@ -67,7 +69,9 @@ export const updateEmployeeRisk = async (id, riskData) => {
     data: {
       riskScore: riskData.risk_score,
       riskLevel: riskData.risk_level,
-      riskReason: riskData.reason
+      riskReason: riskData.reason,
+      signalsDetected: riskData.signals_detected || [],
+      recommendation: riskData.recommendation || null
     }
   });
   return normalizeEmployee(employee);
