@@ -8,6 +8,8 @@ import authRoutes from "./routes/authRoutes.js";
 import candidateRoutes from "./routes/candidateRoutes.js";
 import linkedinRoutes from "./routes/linkedinRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
+import employeeRoutes from "./routes/employeeRoutes.js";
+import jobRoleRoutes from "./routes/jobRoleRoutes.js";
 import { errorHandler, notFound } from "./middleware/errorHandler.js";
 import { aiLimiter, apiLimiter } from "./middleware/rateLimitMiddleware.js";
 import { logError, logInfo } from "./utils/logger.js";
@@ -46,6 +48,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/candidates", candidateRoutes);
 app.use("/api/linkedin", linkedinRoutes);
 app.use("/api/ai", aiLimiter, aiRoutes);
+app.use("/api/employees", employeeRoutes);
+app.use("/api/job-roles", jobRoleRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

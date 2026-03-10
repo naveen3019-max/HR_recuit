@@ -78,3 +78,30 @@ model ActivityLog {
   user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
   candidate   Candidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
 }
+
+model Employee {
+  id          Int       @id @default(autoincrement())
+  name        String
+  email       String    @unique
+  linkedinUrl String?
+  githubUrl   String?
+  currentRole String?
+  salary      Float?
+  riskScore   Float?
+  riskLevel   String?
+  riskReason  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model JobRole {
+  id                 Int      @id @default(autoincrement())
+  title              String
+  requiredSkills     String[]
+  experienceRequired Int      @default(0)
+  description        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([requiredSkills], type: Gin)
+}

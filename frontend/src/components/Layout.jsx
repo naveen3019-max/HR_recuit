@@ -1,11 +1,13 @@
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, UserPlus, Users, LogOut } from "lucide-react";
+import { LayoutDashboard, UserPlus, Users, LogOut, Activity, Briefcase } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Add Candidate", href: "/add-candidate", icon: UserPlus },
   { name: "All Candidates", href: "/candidates", icon: Users },
+  { name: "Employee Monitor", href: "/employees", icon: Activity },
+  { name: "Job Matching", href: "/job-roles", icon: Briefcase },
 ];
 
 const Layout = ({ children }) => {
