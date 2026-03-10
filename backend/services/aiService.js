@@ -160,6 +160,7 @@ Return ONLY valid JSON using this exact structure:
 
 export const generateCandidateSummary = async (candidateInput) => {
   if (!env.llmApiUrl || !env.llmApiKey) {
+    console.error("Missing LLM config - LLM_API_URL:", !!env.llmApiUrl, "LLM_API_KEY:", !!env.llmApiKey);
     return fallbackSummary(candidateInput);
   }
 
@@ -167,12 +168,15 @@ export const generateCandidateSummary = async (candidateInput) => {
   console.log("GitHub data fetched:", githubData
     ? `username=${githubData.username}, repos=${githubData.repository_count}, stars=${githubData.total_stars}, followers=${githubData.followers}`
     : "null (no GitHub URL or fetch failed)");
-  console.log("Calling Gemini API with model:", env.llmModel);
+
+  const baseUrl = env.llmApiUrl.replace(/\/+$/, "");
+  const apiUrl = `${baseUrl}/${env.llmModel}:generateContent?key=${env.llmApiKey}`;
+  console.log("Calling Gemini API:", apiUrl.replace(env.llmApiKey, "***"));
 
   const prompt = buildAnalysisPrompt(candidateInput, githubData);
 
   try {
-    const response = await fetch(`${env.llmApiUrl}/${env.llmModel}:generateContent?key=${env.llmApiKey}`, {
+    const response = await fetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
