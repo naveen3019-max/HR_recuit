@@ -15,7 +15,7 @@ const env = {
   linkedinApiBaseUrl: process.env.LINKEDIN_API_BASE_URL || "https://api.linkedin.com/v2",
   llmApiUrl: process.env.LLM_API_URL,
   llmApiKey: process.env.LLM_API_KEY,
-  llmModel: process.env.LLM_MODEL || "gemini-2.5-flash-preview-05-20",
+  llmModel: process.env.LLM_MODEL || "gemini-2.5-flash",
   githubToken: process.env.GITHUB_TOKEN || null
 };
 
