@@ -1,6 +1,17 @@
 import prisma from "../config/db.js";
 import { ApiError } from "../utils/apiError.js";
 
+const derivePlatformsScanned = (platformProfiles) => {
+  if (!platformProfiles || typeof platformProfiles !== "object") {
+    return {};
+  }
+
+  return Object.entries(platformProfiles).reduce((accumulator, [key, value]) => {
+    accumulator[key] = value?.status || "not_scanned";
+    return accumulator;
+  }, {});
+};
+
 const normalizeEmployee = (emp) => ({
   id: emp.id,
   name: emp.name,
@@ -15,6 +26,8 @@ const normalizeEmployee = (emp) => ({
   signals_detected: emp.signalsDetected || [],
   platforms_flagged: emp.platformsFlagged || [],
   platform_profiles: emp.platformProfiles || {},
+  platforms_scanned: derivePlatformsScanned(emp.platformProfiles),
+  risk_breakdown: emp.riskBreakdown || null,
   recommendation: emp.recommendation,
   created_at: emp.createdAt,
   updated_at: emp.updatedAt
@@ -75,6 +88,7 @@ export const updateEmployeeRisk = async (id, riskData) => {
       signalsDetected: riskData.signals_detected || [],
       platformsFlagged: riskData.platforms_flagged || [],
       platformProfiles: riskData.platform_profiles || undefined,
+      riskBreakdown: riskData.risk_breakdown || undefined,
       recommendation: riskData.recommendation || null
     }
   });

@@ -1,7 +1,20 @@
 import env from "../config/env.js";
 import { logError, logInfo } from "../utils/logger.js";
 
-// ─── STEP 1: LinkedIn Identity Extraction ───────────────────────────────────
+const JOB_PLATFORMS = [
+  { key: "linkedin", name: "LinkedIn" },
+  { key: "naukri", name: "Naukri" },
+  { key: "indeed", name: "Indeed" },
+  { key: "glassdoor", name: "Glassdoor" },
+  { key: "monster", name: "Monster" },
+  { key: "shine", name: "Shine" },
+  { key: "timesjobs", name: "TimesJobs" }
+];
+
+const PLATFORM_LABELS = JOB_PLATFORMS.reduce((accumulator, platform) => {
+  accumulator[platform.key] = platform.name;
+  return accumulator;
+}, {});
 
 const extractLinkedInUsername = (url) => {
   if (!url) return null;
@@ -10,170 +23,6 @@ const extractLinkedInUsername = (url) => {
     return match ? match[1] : null;
   } catch {
     return null;
-  }
-};
-
-const extractLinkedInIdentity = (employee) => {
-  const username = extractLinkedInUsername(employee.linkedin_url);
-  return {
-    name: employee.name,
-    headline: employee.current_role || "",
-    role: employee.current_role || "",
-    location: "",
-    skills: [],
-    linkedin_username: username,
-    linkedin_url: employee.linkedin_url
-  };
-};
-
-// ─── STEP 2: Job Platform Discovery Engine ──────────────────────────────────
-
-const JOB_PLATFORMS = [
-  { key: "naukri", name: "Naukri", patterns: ["{name} {role} naukri profile", "{name} naukri resume"] },
-  { key: "indeed", name: "Indeed", patterns: ["{name} {role} indeed resume", "{name} indeed profile"] },
-  { key: "glassdoor", name: "Glassdoor", patterns: ["{name} {role} glassdoor profile"] },
-  { key: "monster", name: "Monster", patterns: ["{name} {role} monster profile"] },
-  { key: "shine", name: "Shine", patterns: ["{name} {role} shine profile"] },
-  { key: "timesjobs", name: "TimesJobs", patterns: ["{name} {role} timesjobs profile"] }
-];
-
-const buildSearchQueries = (identity) => {
-  const queries = {};
-  for (const platform of JOB_PLATFORMS) {
-    queries[platform.key] = platform.patterns.map((p) =>
-      p.replace("{name}", identity.name)
-        .replace("{role}", identity.role)
-        .replace("{location}", identity.location)
-    );
-  }
-  return queries;
-};
-
-const discoverPlatformProfiles = (identity) => {
-  const searchQueries = buildSearchQueries(identity);
-
-  // Build simulated discovery results based on available identity data.
-  // In production, this would use a search API (e.g., Google Custom Search).
-  const discovered = {};
-  for (const platform of JOB_PLATFORMS) {
-    discovered[platform.key] = {
-      platform: platform.name,
-      search_queries: searchQueries[platform.key],
-      profile_url: null,
-      discovered: false
-    };
-  }
-
-  return discovered;
-};
-
-// ─── STEP 3: Signal Detection ────────────────────────────────────────────────
-
-const detectLinkedInSignals = (employee) => {
-  const signals = [];
-
-  if (employee.linkedin_url) {
-    signals.push({ signal: "LinkedIn profile provided", weight: 5, platform: "LinkedIn" });
-  }
-
-  // LinkedIn URL presence and username patterns can indicate active profile
-  const username = extractLinkedInUsername(employee.linkedin_url);
-  if (username) {
-    signals.push({ signal: "Active LinkedIn profile URL", weight: 5, platform: "LinkedIn" });
-  }
-
-  return signals;
-};
-
-const detectGitHubSignals = async (githubUrl) => {
-  if (!githubUrl) return { signals: [], activity: null };
-
-  const username = extractGithubUsername(githubUrl);
-  if (!username) return { signals: [], activity: null };
-
-  try {
-    const headers = { "User-Agent": "HR-CRM-App", Accept: "application/vnd.github.v3+json" };
-    if (env.githubToken) headers["Authorization"] = `token ${env.githubToken}`;
-
-    const [profileRes, reposRes, eventsRes] = await Promise.all([
-      fetch(`https://api.github.com/users/${encodeURIComponent(username)}`, { headers }),
-      fetch(`https://api.github.com/users/${encodeURIComponent(username)}/repos?per_page=30&sort=updated`, { headers }),
-      fetch(`https://api.github.com/users/${encodeURIComponent(username)}/events/public?per_page=30`, { headers })
-    ]);
-
-    if (!profileRes.ok) return { signals: [], activity: null };
-
-    const profile = await profileRes.json();
-    const repos = reposRes.ok ? await reposRes.json() : [];
-    const events = eventsRes.ok ? await eventsRes.json() : [];
-
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const signals = [];
-
-    // Hireable flag
-    if (profile.hireable) {
-      signals.push({ signal: "GitHub hireable flag enabled", weight: 40, platform: "GitHub" });
-    }
-
-    // Interview prep repos
-    const interviewPrepRepos = repos.filter(
-      (r) => r.name.match(/interview|leetcode|hackerrank|algo|dsa|coding.?challenge|prep|system.?design/i) &&
-        new Date(r.updated_at) > thirtyDaysAgo
-    );
-    if (interviewPrepRepos.length > 0) {
-      signals.push({
-        signal: `Interview prep repos active: ${interviewPrepRepos.map((r) => r.name).join(", ")}`,
-        weight: 10,
-        platform: "GitHub"
-      });
-    }
-
-    // Portfolio/Resume updates
-    const portfolioRepos = repos.filter(
-      (r) => r.name.match(/portfolio|resume|cv|personal.?site|personal.?website/i) &&
-        new Date(r.updated_at) > thirtyDaysAgo
-    );
-    if (portfolioRepos.length > 0) {
-      signals.push({
-        signal: `Portfolio/Resume repos updated: ${portfolioRepos.map((r) => r.name).join(", ")}`,
-        weight: 10,
-        platform: "GitHub"
-      });
-    }
-
-    // Sudden spike in activity
-    const recentEvents = events.filter((e) => new Date(e.created_at) > thirtyDaysAgo);
-    if (recentEvents.length > 20) {
-      signals.push({ signal: "Sudden spike in GitHub coding activity", weight: 10, platform: "GitHub" });
-    }
-
-    // Bio mentioning availability
-    if (profile.bio && /looking|seeking|open to|available|hire me/i.test(profile.bio)) {
-      signals.push({ signal: "GitHub bio mentions availability/job seeking", weight: 25, platform: "GitHub" });
-    }
-
-    const recentRepos = repos.filter((r) => new Date(r.updated_at) > thirtyDaysAgo);
-    const recentRepoNames = recentRepos.slice(0, 10).map((r) => `${r.name} (${r.language || "N/A"})`);
-
-    const activity = {
-      username,
-      bio: profile.bio,
-      public_repos: profile.public_repos,
-      followers: profile.followers,
-      recent_activity_count: recentEvents.length,
-      recently_updated_repos: recentRepos.length,
-      recent_repo_names: recentRepoNames,
-      has_portfolio_updates: portfolioRepos.length > 0,
-      interview_prep_repos: interviewPrepRepos.map((r) => r.name),
-      profile_updated: profile.updated_at,
-      hireable: profile.hireable,
-      company: profile.company
-    };
-
-    return { signals, activity };
-  } catch (err) {
-    logError("GitHub signal detection error", { error: err.message });
-    return { signals: [], activity: null };
   }
 };
 
@@ -187,108 +36,236 @@ const extractGithubUsername = (url) => {
   }
 };
 
-// ─── STEP 4: Risk Scoring Engine ─────────────────────────────────────────────
+const extractLinkedInIdentity = (employee) => ({
+  name: employee.name,
+  role: employee.current_role || "",
+  location: "",
+  linkedin_username: extractLinkedInUsername(employee.linkedin_url),
+  linkedin_url: employee.linkedin_url
+});
 
-const SCORING_WEIGHTS = {
-  linkedin_open_to_work: 40,
-  resume_updated_job_platform: 25,
-  profile_updated_recently: 10,
-  recruiter_connections_increased: 10,
-  github_interview_prep: 10
+const buildSearchQueries = (identity, platformKey) => {
+  const base = `${identity.name} ${identity.role}`.trim();
+  const queries = {
+    linkedin: [`${base} linkedin profile`],
+    naukri: [`${base} naukri profile`, `${base} naukri resume`],
+    indeed: [`${base} indeed resume`, `${base} indeed profile`],
+    glassdoor: [`${base} glassdoor profile`],
+    monster: [`${base} monster profile`],
+    shine: [`${base} shine profile`],
+    timesjobs: [`${base} timesjobs profile`]
+  };
+
+  return queries[platformKey] || [];
 };
 
-const calculateRiskScore = (signals) => {
-  const totalWeight = signals.reduce((sum, s) => sum + s.weight, 0);
-  const score = Math.min(100, totalWeight);
+const buildPlatformProfiles = (identity) => {
+  const profiles = {};
 
-  let level;
-  if (score >= 61) level = "HIGH";
-  else if (score >= 31) level = "MEDIUM";
-  else level = "LOW";
+  for (const platform of JOB_PLATFORMS) {
+    const isLinkedIn = platform.key === "linkedin";
+    profiles[platform.key] = {
+      platform: platform.name,
+      status: isLinkedIn && identity.linkedin_url ? "found" : "not_found",
+      profile_url: isLinkedIn ? identity.linkedin_url || null : null,
+      search_queries: buildSearchQueries(identity, platform.key)
+    };
+  }
 
-  return { score, level };
+  return profiles;
 };
 
-// ─── STEP 5: AI Analysis ────────────────────────────────────────────────────
+const detectLinkedInSignals = (employee, platformProfiles) => {
+  const signals = [];
+  const linkedInProfile = platformProfiles.linkedin;
 
-const buildJobSearchPrompt = (employee, signals, githubActivity, platformDiscovery) => {
+  if (linkedInProfile?.status === "found") {
+    signals.push({
+      signal: "Active LinkedIn profile",
+      weight: 10,
+      platform: "LinkedIn",
+      category: "linkedin_signals"
+    });
+  }
+
+  if (employee.current_role && employee.linkedin_url) {
+    signals.push({
+      signal: "LinkedIn profile aligned with current role",
+      weight: 0,
+      platform: "LinkedIn",
+      category: "linkedin_signals"
+    });
+  }
+
+  return signals;
+};
+
+const detectGitHubSignals = async (githubUrl) => {
+  if (!githubUrl) return { signals: [], activity: null };
+
+  const username = extractGithubUsername(githubUrl);
+  if (!username) return { signals: [], activity: null };
+
+  try {
+    const headers = { "User-Agent": "HR-CRM-App", Accept: "application/vnd.github.v3+json" };
+    if (env.githubToken) headers.Authorization = `token ${env.githubToken}`;
+
+    const [profileRes, reposRes, eventsRes] = await Promise.all([
+      fetch(`https://api.github.com/users/${encodeURIComponent(username)}`, { headers }),
+      fetch(`https://api.github.com/users/${encodeURIComponent(username)}/repos?per_page=30&sort=updated`, { headers }),
+      fetch(`https://api.github.com/users/${encodeURIComponent(username)}/events/public?per_page=30`, { headers })
+    ]);
+
+    if (!profileRes.ok) return { signals: [], activity: null };
+
+    const profile = await profileRes.json();
+    const repos = reposRes.ok ? await reposRes.json() : [];
+    const events = eventsRes.ok ? await eventsRes.json() : [];
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const recentEvents = events.filter((event) => new Date(event.created_at) > thirtyDaysAgo);
+    const recentRepos = repos.filter((repo) => new Date(repo.updated_at) > thirtyDaysAgo);
+    const interviewPrepRepos = recentRepos.filter((repo) =>
+      /interview|leetcode|hackerrank|algo|dsa|coding.?challenge|prep|system.?design/i.test(repo.name)
+    );
+    const signals = [];
+
+    if (interviewPrepRepos.length > 0) {
+      signals.push({
+        signal: `Interview preparation repositories detected: ${interviewPrepRepos.map((repo) => repo.name).join(", ")}`,
+        weight: 10,
+        platform: "GitHub",
+        category: "github_signals"
+      });
+    }
+
+    if (recentEvents.length > 20) {
+      signals.push({
+        signal: "GitHub activity spike detected",
+        weight: 10,
+        platform: "GitHub",
+        category: "github_signals"
+      });
+    }
+
+    const activity = {
+      username,
+      hireable: profile.hireable,
+      bio: profile.bio,
+      company: profile.company,
+      public_repos: profile.public_repos,
+      followers: profile.followers,
+      recent_activity_count: recentEvents.length,
+      recent_repo_names: recentRepos.slice(0, 10).map((repo) => repo.name),
+      interview_prep_repos: interviewPrepRepos.map((repo) => repo.name),
+      profile_updated: profile.updated_at
+    };
+
+    return { signals, activity };
+  } catch (error) {
+    logError("GitHub signal detection error", { error: error.message });
+    return { signals: [], activity: null };
+  }
+};
+
+const detectPlatformSignals = (platformProfiles) => {
+  const signals = [];
+
+  for (const [platformKey, platformProfile] of Object.entries(platformProfiles)) {
+    if (platformKey === "linkedin") continue;
+
+    if (platformProfile.status === "found") {
+      signals.push({
+        signal: `${platformProfile.platform} profile detected`,
+        weight: 0,
+        platform: platformProfile.platform,
+        category: "job_platform_signals"
+      });
+    }
+  }
+
+  return signals;
+};
+
+const calculateRiskBreakdown = (signals) => {
+  const breakdown = {
+    linkedin_signals: 0,
+    github_signals: 0,
+    job_platform_signals: 0
+  };
+
+  for (const signal of signals) {
+    breakdown[signal.category] = (breakdown[signal.category] || 0) + signal.weight;
+  }
+
+  breakdown.total = Math.min(100, Object.values(breakdown).reduce((sum, value) => sum + value, 0));
+  return breakdown;
+};
+
+const calculateRiskLevel = (score) => {
+  if (score >= 61) return "HIGH";
+  if (score >= 31) return "MEDIUM";
+  return "LOW";
+};
+
+const buildPrompt = (employee, signals, platformProfiles, githubActivity, riskBreakdown) => {
   const signalList = signals.length > 0
-    ? signals.map((s) => `- [${s.platform}] ${s.signal} (weight: ${s.weight})`).join("\n")
+    ? signals.map((signal) => `- [${signal.platform}] ${signal.signal} (+${signal.weight})`).join("\n")
     : "- No strong signals detected";
 
-  const githubSection = githubActivity
-    ? `GitHub Activity:
-- Username: ${githubActivity.username}
-- Bio: ${githubActivity.bio || "N/A"}
-- Company: ${githubActivity.company || "N/A"}
-- Hireable flag: ${githubActivity.hireable ? "YES" : "No / Not set"}
-- Public repos: ${githubActivity.public_repos}
-- Followers: ${githubActivity.followers}
-- Recent events (30 days): ${githubActivity.recent_activity_count}
-- Recently updated repos: ${githubActivity.recently_updated_repos}
-- Recent repo names: ${githubActivity.recent_repo_names.join(", ") || "None"}
-- Portfolio/Resume updated: ${githubActivity.has_portfolio_updates ? "YES" : "No"}
-- Interview prep repos: ${githubActivity.interview_prep_repos.length > 0 ? githubActivity.interview_prep_repos.join(", ") : "None"}
-- Profile last updated: ${githubActivity.profile_updated}`
-    : "GitHub Activity: Not available (no GitHub URL provided)";
-
-  const platformSection = Object.values(platformDiscovery)
-    .map((p) => `- ${p.platform}: ${p.discovered ? `Profile found at ${p.profile_url}` : "No profile discovered"}`)
+  const platformScan = JOB_PLATFORMS
+    .map((platform) => {
+      const result = platformProfiles[platform.key];
+      return `- ${platform.name}: ${result?.status || "not_found"}${result?.profile_url ? ` (${result.profile_url})` : ""}`;
+    })
     .join("\n");
 
-  return `You are an advanced AI HR intelligence system specializing in employee job-search detection.
+  const githubSummary = githubActivity
+    ? `GitHub Summary:\n- Username: ${githubActivity.username}\n- Hireable flag: ${githubActivity.hireable ? "Yes" : "No"}\n- Recent activity count: ${githubActivity.recent_activity_count}\n- Interview prep repos: ${githubActivity.interview_prep_repos.join(", ") || "None"}\n- Recent repos: ${githubActivity.recent_repo_names.join(", ") || "None"}`
+    : "GitHub Summary:\n- Not available";
 
-Your task is to analyze multiple signals across job platforms and professional networks to determine if this employee is actively searching for a new job.
+  return `You are an HR AI system generating a structured job-search risk report.
 
-═══════════════════════════════════
-EMPLOYEE INFORMATION
-═══════════════════════════════════
-Name: ${employee.name}
-Email: ${employee.email}
-Current Role: ${employee.current_role || "Not specified"}
-LinkedIn: ${employee.linkedin_url || "Not provided"}
-GitHub: ${employee.github_url || "Not provided"}
+Employee:
+- Name: ${employee.name}
+- Email: ${employee.email}
+- Role: ${employee.current_role || "Not specified"}
+- LinkedIn URL: ${employee.linkedin_url}
+- GitHub URL: ${employee.github_url || "Not provided"}
 
-═══════════════════════════════════
-DETECTED SIGNALS
-═══════════════════════════════════
+Job Platform Scan:
+${platformScan}
+
+Signals Detected:
 ${signalList}
 
-═══════════════════════════════════
-JOB PLATFORM DISCOVERY
-═══════════════════════════════════
-${platformSection}
+Risk Score Breakdown:
+- LinkedIn signals: ${riskBreakdown.linkedin_signals}
+- GitHub signals: ${riskBreakdown.github_signals}
+- Job platform signals: ${riskBreakdown.job_platform_signals}
+- Total: ${riskBreakdown.total}
 
-═══════════════════════════════════
-${githubSection}
-═══════════════════════════════════
+${githubSummary}
 
-ANALYSIS INSTRUCTIONS:
-1. Evaluate each signal's importance relative to job-search behavior
-2. Consider the combination of signals — multiple weak signals together can indicate stronger intent
-3. LinkedIn "Open to Work" or hireable flags are very strong indicators
-4. Resume/profile updates on job platforms (Naukri, Indeed, etc.) are strong indicators
-5. Interview preparation repos on GitHub are moderate indicators
-6. Consider the employee's role when evaluating GitHub signals (more relevant for tech roles)
-7. Sudden spikes in professional activity across platforms suggest active job searching
-
-RISK SCORING:
-- 0–30: LOW — No clear job-search signals, normal professional activity
-- 31–60: MEDIUM — Some preparation signals exist, worth monitoring
-- 61–100: HIGH — Strong indicators of active job searching
-
-Return ONLY valid JSON:
+Return ONLY valid JSON using this exact shape:
 {
-  "risk_score": <number 0-100>,
-  "risk_level": "<LOW | MEDIUM | HIGH>",
-  "signals_detected": ["list each signal as a concise string"],
-  "platforms_flagged": ["list platform names where signals were found"],
-  "analysis": "<2-3 sentence professional explanation>",
-  "recommendation": "<1-2 sentence actionable HR suggestion>"
+  "risk_score": 20,
+  "risk_level": "LOW",
+  "platforms_scanned": {
+    "linkedin": "found",
+    "naukri": "not_found",
+    "indeed": "not_found",
+    "glassdoor": "not_found",
+    "monster": "not_found",
+    "shine": "not_found",
+    "timesjobs": "not_found"
+  },
+  "signals_detected": ["Active LinkedIn profile", "GitHub activity spike"],
+  "analysis": "Professional explanation of the risk result.",
+  "recommendation": "Actionable HR guidance."
 }`;
 };
 
-const callGeminiAPI = async (prompt) => {
+const callGeminiApi = async (prompt) => {
   const baseUrl = env.llmApiUrl.replace(/\/+$/, "");
   const apiUrl = `${baseUrl}/${env.llmModel}:generateContent?key=${env.llmApiKey}`;
 
@@ -297,7 +274,7 @@ const callGeminiAPI = async (prompt) => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       system_instruction: {
-        parts: [{ text: "You are an AI HR intelligence system. Return analysis strictly in valid JSON format. No markdown, no code fences. Be concise and professional." }]
+        parts: [{ text: "Return valid JSON only. No markdown. No code fences. Be concise and professional." }]
       },
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
@@ -308,8 +285,8 @@ const callGeminiAPI = async (prompt) => {
   });
 
   if (!response.ok) {
-    const errText = await response.text();
-    logError("Gemini job search analysis error", { status: response.status, body: errText });
+    const body = await response.text();
+    logError("Gemini job search analysis error", { status: response.status, body });
     return null;
   }
 
@@ -317,82 +294,102 @@ const callGeminiAPI = async (prompt) => {
   return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
 };
 
-// ─── Main Export: Full Job Search Detection ──────────────────────────────────
+const getPlatformsScanned = (platformProfiles) => Object.entries(platformProfiles).reduce((accumulator, [key, value]) => {
+  accumulator[key] = value.status;
+  return accumulator;
+}, {});
 
-export const analyzeJobSearchRisk = async (employee) => {
-  const fallback = {
-    risk_score: 0,
-    risk_level: "LOW",
-    reason: "AI analysis unavailable. Configure LLM API credentials.",
-    signals_detected: [],
-    platforms_flagged: [],
-    recommendation: "Set up Gemini API keys to enable AI-powered analysis.",
-    platform_profiles: {}
-  };
+const getPlatformsFlagged = (platformProfiles, signals) => {
+  const flagged = new Set();
 
-  if (!env.llmApiUrl || !env.llmApiKey) return fallback;
-
-  // Step 1: Extract LinkedIn identity
-  const identity = extractLinkedInIdentity(employee);
-
-  // Step 2: Discover job platform profiles
-  const platformDiscovery = discoverPlatformProfiles(identity);
-
-  // Step 3: Detect signals
-  const linkedInSignals = detectLinkedInSignals(employee);
-  const { signals: githubSignals, activity: githubActivity } = await detectGitHubSignals(employee.github_url);
-  const allSignals = [...linkedInSignals, ...githubSignals];
-
-  logInfo("Job search detection signals", {
-    employee: employee.name,
-    signal_count: allSignals.length,
-    github: githubActivity ? `${githubActivity.username}` : "N/A"
+  Object.entries(platformProfiles).forEach(([key, value]) => {
+    if (value.status === "found") {
+      flagged.add(PLATFORM_LABELS[key]);
+    }
   });
 
-  // Step 4: Calculate weighted score
-  const { score: weightedScore, level: weightedLevel } = calculateRiskScore(allSignals);
+  signals.forEach((signal) => {
+    if (signal.weight > 0) {
+      flagged.add(signal.platform);
+    }
+  });
 
-  // Step 5: AI analysis
-  const prompt = buildJobSearchPrompt(employee, allSignals, githubActivity, platformDiscovery);
+  return Array.from(flagged);
+};
+
+export const analyzeJobSearchRisk = async (employee) => {
+  const identity = extractLinkedInIdentity(employee);
+  const platformProfiles = buildPlatformProfiles(identity);
+  const linkedInSignals = detectLinkedInSignals(employee, platformProfiles);
+  const { signals: githubSignals, activity: githubActivity } = await detectGitHubSignals(employee.github_url);
+  const platformSignals = detectPlatformSignals(platformProfiles);
+  const allSignals = [...linkedInSignals, ...githubSignals, ...platformSignals];
+  const riskBreakdown = calculateRiskBreakdown(allSignals);
+  const platformsScanned = getPlatformsScanned(platformProfiles);
+  const platformsFlagged = getPlatformsFlagged(platformProfiles, allSignals);
+
+  logInfo("Job search detection summary", {
+    employee: employee.email,
+    totalSignals: allSignals.length,
+    riskScore: riskBreakdown.total,
+    platformsFlagged
+  });
+
+  const fallback = {
+    risk_score: riskBreakdown.total,
+    risk_level: calculateRiskLevel(riskBreakdown.total),
+    reason: env.llmApiUrl && env.llmApiKey
+      ? "AI analysis temporarily unavailable. Score is based on detected signals."
+      : "AI analysis unavailable. Configure LLM API credentials.",
+    signals_detected: allSignals.map((signal) => signal.signal),
+    platforms_scanned: platformsScanned,
+    platforms_flagged: platformsFlagged,
+    platform_profiles: platformProfiles,
+    risk_breakdown: riskBreakdown,
+    recommendation: env.llmApiUrl && env.llmApiKey
+      ? "Review the scan results and monitor for repeated changes over time."
+      : "Set up Gemini API keys to enable AI-powered analysis."
+  };
+
+  if (!env.llmApiUrl || !env.llmApiKey) {
+    return fallback;
+  }
 
   try {
-    const content = await callGeminiAPI(prompt);
+    const prompt = buildPrompt(employee, allSignals, platformProfiles, githubActivity, riskBreakdown);
+    const content = await callGeminiApi(prompt);
+
     if (!content) {
-      return {
-        ...fallback,
-        risk_score: weightedScore,
-        risk_level: weightedLevel,
-        reason: "AI analysis temporarily unavailable. Score is based on weighted signals.",
-        signals_detected: allSignals.map((s) => s.signal)
-      };
+      return fallback;
     }
 
     const parsed = JSON.parse(content);
-    const score = Math.min(100, Math.max(0, Number(parsed.risk_score) || 0));
-    const validLevels = ["LOW", "MEDIUM", "HIGH"];
-    const level = validLevels.includes(parsed.risk_level?.toUpperCase())
+    const score = Math.min(100, Math.max(0, Number(parsed.risk_score) || riskBreakdown.total));
+    const level = ["LOW", "MEDIUM", "HIGH"].includes(parsed.risk_level?.toUpperCase())
       ? parsed.risk_level.toUpperCase()
-      : score >= 61 ? "HIGH" : score >= 31 ? "MEDIUM" : "LOW";
+      : calculateRiskLevel(score);
 
     return {
       risk_score: score,
       risk_level: level,
-      reason: parsed.analysis || "Analysis complete.",
-      signals_detected: Array.isArray(parsed.signals_detected) ? parsed.signals_detected : allSignals.map((s) => s.signal),
-      platforms_flagged: Array.isArray(parsed.platforms_flagged) ? parsed.platforms_flagged : [],
-      recommendation: parsed.recommendation || "",
-      platform_profiles: platformDiscovery
+      reason: parsed.analysis || fallback.reason,
+      signals_detected: Array.isArray(parsed.signals_detected) ? parsed.signals_detected : fallback.signals_detected,
+      platforms_scanned: parsed.platforms_scanned && typeof parsed.platforms_scanned === "object"
+        ? { ...platformsScanned, ...parsed.platforms_scanned }
+        : platformsScanned,
+      platforms_flagged: platformsFlagged,
+      platform_profiles: Object.entries(platformProfiles).reduce((accumulator, [key, value]) => {
+        accumulator[key] = {
+          ...value,
+          status: parsed.platforms_scanned?.[key] || value.status
+        };
+        return accumulator;
+      }, {}),
+      risk_breakdown: { ...riskBreakdown, total: score },
+      recommendation: parsed.recommendation || fallback.recommendation
     };
   } catch (error) {
     logError("Job search AI analysis error", { error: error.message });
-    return {
-      risk_score: weightedScore,
-      risk_level: weightedLevel,
-      reason: "AI analysis failed. Score based on weighted signal detection.",
-      signals_detected: allSignals.map((s) => s.signal),
-      platforms_flagged: [],
-      recommendation: "",
-      platform_profiles: platformDiscovery
-    };
+    return fallback;
   }
 };

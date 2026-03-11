@@ -93,6 +93,7 @@ model Employee {
   signalsDetected  String[]
   platformsFlagged String[]
   platformProfiles Json?
+  riskBreakdown    Json?
   recommendation   String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
