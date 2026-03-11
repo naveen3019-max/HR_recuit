@@ -5,6 +5,8 @@ import {
   Mail, 
   Linkedin, 
   Github, 
+  Briefcase,
+  MapPin,
   Brain,
   Loader2,
   CheckCircle,
@@ -24,6 +26,11 @@ const AddCandidate = () => {
     email: "",
     linkedin_url: "",
     github_url: "",
+    current_role: "",
+    experience_years: "0",
+    location: "",
+    skills: "",
+    open_to_work: true,
   });
 
   const handleChange = (e) => {
@@ -45,9 +52,11 @@ const AddCandidate = () => {
         email: formData.email,
         linkedin_url: formData.linkedin_url || undefined,
         github_url: formData.github_url || undefined,
-        skills: [],
-        experience_years: 0,
-        location: "",
+        current_role: formData.current_role || undefined,
+        skills: formData.skills.split(",").map((item) => item.trim()).filter(Boolean),
+        experience_years: Number(formData.experience_years || 0),
+        location: formData.location || undefined,
+        open_to_work: formData.open_to_work,
       };
 
       const { data: candidate } = await api.post("/candidates", candidateData);
@@ -195,6 +204,86 @@ const AddCandidate = () => {
                 />
               </div>
             </div>
+
+            <div className="grid gap-6 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Current Role
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <Briefcase className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    name="current_role"
+                    value={formData.current_role}
+                    onChange={handleChange}
+                    placeholder="Backend Developer"
+                    className="input-field pl-12"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Experience (years)
+                </label>
+                <input
+                  type="number"
+                  name="experience_years"
+                  value={formData.experience_years}
+                  onChange={handleChange}
+                  min="0"
+                  max="60"
+                  className="input-field"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Location
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <MapPin className="w-5 h-5 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  name="location"
+                  value={formData.location}
+                  onChange={handleChange}
+                  placeholder="Bangalore"
+                  className="input-field pl-12"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Skills
+              </label>
+              <input
+                type="text"
+                name="skills"
+                value={formData.skills}
+                onChange={handleChange}
+                placeholder="Node.js, PostgreSQL, REST APIs"
+                className="input-field"
+              />
+            </div>
+
+            <label className="flex items-center gap-3 rounded-lg border border-gray-100 p-4 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                name="open_to_work"
+                checked={formData.open_to_work}
+                onChange={(event) => setFormData((prev) => ({ ...prev, open_to_work: event.target.checked }))}
+                className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              Candidate is currently open to work
+            </label>
 
             {/* Divider */}
             <div className="relative">

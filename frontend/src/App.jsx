@@ -6,6 +6,7 @@ import AddCandidate from "./pages/AddCandidate";
 import CandidatesList from "./pages/CandidatesList";
 import CandidateReport from "./pages/CandidateReport";
 import EmployeeMonitoring from "./pages/EmployeeMonitoring";
+import CandidateMatching from "./pages/CandidateMatching";
 import JobRoleMatching from "./pages/JobRoleMatching";
 import Login from "./pages/Login";
 import api from "./services/api";
@@ -53,6 +54,7 @@ const App = () => {
         <Route path="/candidates" element={<CandidatesList candidates={candidates} />} />
         <Route path="/candidates/:id" element={<CandidateReport />} />
         <Route path="/employees" element={<EmployeeMonitoring />} />
+        <Route path="/candidate-matching" element={<CandidateMatching />} />
         <Route path="/job-roles" element={<JobRoleMatching />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

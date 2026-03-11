@@ -7,7 +7,7 @@ const navigation = [
   { name: "Add Candidate", href: "/add-candidate", icon: UserPlus },
   { name: "All Candidates", href: "/candidates", icon: Users },
   { name: "Employee Monitor", href: "/employees", icon: Activity },
-  { name: "Job Matching", href: "/job-roles", icon: Briefcase },
+  { name: "Candidate Matching", href: "/candidate-matching", icon: Briefcase },
 ];
 
 const Layout = ({ children }) => {

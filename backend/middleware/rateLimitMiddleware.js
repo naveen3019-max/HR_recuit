@@ -22,3 +22,12 @@ export const employeeAnalysisLimiter = rateLimit({
     message: "Analysis rate limit exceeded. Please retry in 15 minutes."
   }
 });
+
+export const candidateMatchingLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 25,
+  message: {
+    success: false,
+    message: "Candidate matching limit exceeded. Please retry in 15 minutes."
+  }
+});

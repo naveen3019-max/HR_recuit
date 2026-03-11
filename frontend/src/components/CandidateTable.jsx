@@ -12,6 +12,7 @@ const CandidateTable = ({ candidates }) => {
             <th>Phone</th>
             <th>Company</th>
             <th>Role</th>
+            <th>Status</th>
             <th>Skills</th>
             <th>Experience</th>
             <th>Location</th>
@@ -27,6 +28,7 @@ const CandidateTable = ({ candidates }) => {
               <td>{candidate.phone || "N/A"}</td>
               <td>{candidate.current_company || "N/A"}</td>
               <td>{candidate.current_role || "N/A"}</td>
+              <td>{candidate.open_to_work ? "Open to Work" : "Not Open"}</td>
               <td>{candidate.skills.join(", ")}</td>
               <td>{candidate.experience_years} yrs</td>
               <td>{candidate.location || "N/A"}</td>

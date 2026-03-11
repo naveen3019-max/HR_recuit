@@ -15,6 +15,7 @@ export const createCandidateSchema = z.object({
     skills: z.array(z.string()).default([]),
     education: z.string().optional().or(z.literal("")),
     location: z.string().optional().or(z.literal("")),
+    open_to_work: z.boolean().optional().default(false),
     notes: z.string().optional().or(z.literal("")),
     recruitment_stage: stageEnum.optional()
   })
@@ -33,6 +34,7 @@ export const updateCandidateSchema = z.object({
     skills: z.array(z.string()).optional(),
     education: z.string().optional().or(z.literal("")),
     location: z.string().optional().or(z.literal("")),
+    open_to_work: z.boolean().optional(),
     notes: z.string().optional().or(z.literal(""))
   })
 });
@@ -61,6 +63,7 @@ export const listCandidatesSchema = z.object({
     email: z.string().optional(),
     linkedin: z.string().optional(),
     stage: stageEnum.optional(),
+    open_to_work: z.coerce.boolean().optional(),
     search: z.string().optional()
   })
 });

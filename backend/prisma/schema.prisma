@@ -47,6 +47,7 @@ model Candidate {
   resumeUrl        String?
   stageId          Int
   summary          String?
+  openToWork       Boolean        @default(false)
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   stage            RecruitmentStage @relation(fields: [stageId], references: [id])

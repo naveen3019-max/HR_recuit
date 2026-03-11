@@ -88,6 +88,9 @@ const CandidateProfilePage = () => {
         <strong>Current Role:</strong> {candidate.current_role || "N/A"}
       </p>
       <p>
+        <strong>Open to Work:</strong> {candidate.open_to_work ? "Yes" : "No"}
+      </p>
+      <p>
         <strong>Skills:</strong> {candidate.skills.join(", ")}
       </p>
       <p>

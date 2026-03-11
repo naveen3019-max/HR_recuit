@@ -159,6 +159,12 @@ const CandidateReport = () => {
                 </span>
               )}
 
+              <div className="mt-2">
+                <span className={`inline-flex items-center px-3 py-1 text-sm font-medium rounded-full ${candidate?.open_to_work ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"}`}>
+                  {candidate?.open_to_work ? "Open to Work" : "Not Open to Work"}
+                </span>
+              </div>
+
               <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-3">
                 {candidate?.email && (
                   <a href={`mailto:${candidate.email}`} className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-600 hover:text-primary-600 transition-colors">

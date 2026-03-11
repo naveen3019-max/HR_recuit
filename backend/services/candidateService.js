@@ -18,6 +18,7 @@ const normalizeCandidate = (candidate) => ({
   notes: candidate.notes?.[0]?.note || "",
   recruitment_stage: candidate.stage?.name,
   ai_summary: candidate.summary || "",
+  open_to_work: candidate.openToWork,
   created_at: candidate.createdAt,
   updated_at: candidate.updatedAt
 });
@@ -47,6 +48,7 @@ export const createCandidate = async (payload, userId) => {
       education: payload.education || null,
       location: payload.location || null,
       resumeUrl: payload.resume_url || null,
+      openToWork: payload.open_to_work || false,
       stageId: stage.id,
       notes: payload.notes
         ? {
@@ -124,6 +126,10 @@ export const listCandidates = async (filters) => {
 
   if (filters.stage) {
     where.AND.push({ stage: { name: filters.stage } });
+  }
+
+  if (filters.open_to_work !== undefined) {
+    where.AND.push({ openToWork: filters.open_to_work });
   }
 
   if (where.AND.length === 0) {
@@ -212,6 +218,7 @@ export const updateCandidate = async (candidateId, payload, userId) => {
       education: payload.education,
       location: payload.location,
       resumeUrl: payload.resume_url,
+      openToWork: payload.open_to_work,
       notes: payload.notes
         ? {
             create: {
