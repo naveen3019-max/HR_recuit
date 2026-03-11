@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useEffect } from "react";
 import { Mail, Lock, Brain, Loader2, AlertCircle, User } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -14,6 +15,14 @@ const Login = () => {
     password: "",
     confirmPassword: "",
   });
+
+  useEffect(() => {
+    const authMessage = sessionStorage.getItem("hrcrm_auth_message");
+    if (authMessage) {
+      setError(authMessage);
+      sessionStorage.removeItem("hrcrm_auth_message");
+    }
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
