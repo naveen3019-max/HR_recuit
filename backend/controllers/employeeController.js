@@ -6,6 +6,7 @@ import {
   updateEmployeeRisk
 } from "../services/employeeService.js";
 import { analyzeEmployeeRisk } from "../services/employeeRiskService.js";
+import { analyzeJobSearchRisk } from "../services/jobSearchDetectionService.js";
 
 export const createEmployeeHandler = async (req, res, next) => {
   try {
@@ -38,6 +39,17 @@ export const analyzeRiskHandler = async (req, res, next) => {
   try {
     const employee = await getEmployeeById(req.validated.params.id);
     const riskResult = await analyzeEmployeeRisk(employee);
+    const updated = await updateEmployeeRisk(employee.id, riskResult);
+    return res.json(updated);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const analyzeJobSearchHandler = async (req, res, next) => {
+  try {
+    const employee = await getEmployeeById(req.validated.params.id);
+    const riskResult = await analyzeJobSearchRisk(employee);
     const updated = await updateEmployeeRisk(employee.id, riskResult);
     return res.json(updated);
   } catch (error) {

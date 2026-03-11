@@ -15,7 +15,9 @@ import {
   X,
   Activity,
   Lightbulb,
-  Zap
+  Zap,
+  Search,
+  Globe
 } from "lucide-react";
 import api from "../services/api";
 
@@ -31,6 +33,7 @@ const EmployeeMonitoring = () => {
   const [showForm, setShowForm] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   const [analyzingId, setAnalyzingId] = useState(null);
+  const [jobSearchId, setJobSearchId] = useState(null);
   const [error, setError] = useState(null);
   const [formData, setFormData] = useState({
     name: "",
@@ -67,7 +70,7 @@ const EmployeeMonitoring = () => {
       const payload = {
         name: formData.name,
         email: formData.email,
-        linkedin_url: formData.linkedin_url || undefined,
+        linkedin_url: formData.linkedin_url,
         github_url: formData.github_url || undefined,
         current_role: formData.current_role || undefined,
         salary: formData.salary ? Number(formData.salary) : undefined
@@ -92,6 +95,18 @@ const EmployeeMonitoring = () => {
       setError("Risk analysis failed");
     } finally {
       setAnalyzingId(null);
+    }
+  };
+
+  const analyzeJobSearch = async (id) => {
+    setJobSearchId(id);
+    try {
+      const { data } = await api.post(`/employees/analyze-job-risk/${id}`);
+      setEmployees((prev) => prev.map((e) => (e.id === id ? data : e)));
+    } catch (err) {
+      setError("Job search detection failed");
+    } finally {
+      setJobSearchId(null);
     }
   };
 
@@ -194,10 +209,10 @@ const EmployeeMonitoring = () => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">LinkedIn URL</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">LinkedIn URL *</label>
                   <div className="relative">
                     <Linkedin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input type="url" name="linkedin_url" value={formData.linkedin_url} onChange={handleChange} placeholder="https://linkedin.com/in/..." className="input-field pl-10" />
+                    <input type="url" name="linkedin_url" value={formData.linkedin_url} onChange={handleChange} placeholder="https://linkedin.com/in/..." className="input-field pl-10" required />
                   </div>
                 </div>
                 <div>
@@ -228,6 +243,7 @@ const EmployeeMonitoring = () => {
             const risk = riskColors[emp.risk_level] || riskColors.LOW;
             const RiskIcon = risk.icon;
             const isAnalyzing = analyzingId === emp.id;
+            const isSearching = jobSearchId === emp.id;
 
             return (
               <div key={emp.id} className="card p-5">
@@ -245,27 +261,52 @@ const EmployeeMonitoring = () => {
                     </div>
                     <p className="text-sm text-gray-500">{emp.current_role || "No role specified"}</p>
                     <p className="text-sm text-gray-400">{emp.email}</p>
+                    <div className="flex items-center gap-3 mt-1">
+                      {emp.linkedin_url && (
+                        <a href={emp.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700">
+                          <Linkedin className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                      {emp.github_url && (
+                        <a href={emp.github_url} target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-gray-700">
+                          <Github className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Risk Score */}
-                  <div className="flex items-center gap-4">
+                  {/* Risk Score & Actions */}
+                  <div className="flex items-center gap-3">
                     {emp.risk_score !== null && emp.risk_score !== undefined && (
                       <div className="text-center">
                         <p className={`text-3xl font-bold ${risk.text}`}>{emp.risk_score}</p>
                         <p className="text-xs text-gray-500">/ 100</p>
                       </div>
                     )}
-                    <button
-                      onClick={() => analyzeRisk(emp.id)}
-                      disabled={isAnalyzing}
-                      className="btn-primary flex items-center gap-2 whitespace-nowrap"
-                    >
-                      {isAnalyzing ? (
-                        <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</>
-                      ) : (
-                        <><Brain className="w-4 h-4" /> Analyze Risk</>
-                      )}
-                    </button>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() => analyzeJobSearch(emp.id)}
+                        disabled={isSearching || isAnalyzing}
+                        className="btn-primary flex items-center gap-2 whitespace-nowrap text-sm"
+                      >
+                        {isSearching ? (
+                          <><Loader2 className="w-4 h-4 animate-spin" /> Detecting...</>
+                        ) : (
+                          <><Search className="w-4 h-4" /> Detect Job Search</>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => analyzeRisk(emp.id)}
+                        disabled={isAnalyzing || isSearching}
+                        className="flex items-center gap-2 whitespace-nowrap text-sm px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                      >
+                        {isAnalyzing ? (
+                          <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Analyzing...</>
+                        ) : (
+                          <><Brain className="w-3.5 h-3.5" /> Quick Risk</>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -275,6 +316,23 @@ const EmployeeMonitoring = () => {
                     <p className={`text-sm ${risk.text}`}>
                       <strong>AI Analysis:</strong> {emp.risk_reason}
                     </p>
+
+                    {/* Platforms Flagged */}
+                    {emp.platforms_flagged && emp.platforms_flagged.length > 0 && (
+                      <div>
+                        <p className={`text-xs font-semibold ${risk.text} flex items-center gap-1 mb-1.5`}>
+                          <Globe className="w-3 h-3" /> Platforms Flagged
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {emp.platforms_flagged.map((platform, idx) => (
+                            <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-purple-100 text-purple-700">
+                              <Globe className="w-2.5 h-2.5" />
+                              {platform}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Signals Detected */}
                     {emp.signals_detected && emp.signals_detected.length > 0 && (

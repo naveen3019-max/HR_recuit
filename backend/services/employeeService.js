@@ -13,6 +13,8 @@ const normalizeEmployee = (emp) => ({
   risk_level: emp.riskLevel,
   risk_reason: emp.riskReason,
   signals_detected: emp.signalsDetected || [],
+  platforms_flagged: emp.platformsFlagged || [],
+  platform_profiles: emp.platformProfiles || {},
   recommendation: emp.recommendation,
   created_at: emp.createdAt,
   updated_at: emp.updatedAt
@@ -23,7 +25,7 @@ export const createEmployee = async (payload) => {
     data: {
       name: payload.name,
       email: payload.email,
-      linkedinUrl: payload.linkedin_url || null,
+      linkedinUrl: payload.linkedin_url,
       githubUrl: payload.github_url || null,
       currentRole: payload.current_role || null,
       salary: payload.salary || null
@@ -71,6 +73,8 @@ export const updateEmployeeRisk = async (id, riskData) => {
       riskLevel: riskData.risk_level,
       riskReason: riskData.reason,
       signalsDetected: riskData.signals_detected || [],
+      platformsFlagged: riskData.platforms_flagged || [],
+      platformProfiles: riskData.platform_profiles || undefined,
       recommendation: riskData.recommendation || null
     }
   });

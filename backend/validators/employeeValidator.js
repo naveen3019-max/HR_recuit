@@ -10,9 +10,7 @@ export const createEmployeeSchema = z.object({
     linkedin_url: z
       .string()
       .url()
-      .regex(linkedinUrlPattern, "Must be a valid LinkedIn URL")
-      .optional()
-      .or(z.literal("")),
+      .regex(linkedinUrlPattern, "Must be a valid LinkedIn URL"),
     github_url: z
       .string()
       .url()
