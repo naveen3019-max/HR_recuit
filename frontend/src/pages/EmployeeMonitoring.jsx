@@ -43,7 +43,8 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const formatStatus = (status) => {
   if (status === "found") return "Profile Found";
-  if (status === "not_found") return "No Profile Detected";
+  if (status === "no_signals") return "No Job-Search Signals Detected";
+  if (status === "not_found") return "No Job-Search Signals Detected";
   return "Not Scanned";
 };
 

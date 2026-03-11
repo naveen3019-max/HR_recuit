@@ -66,7 +66,7 @@ const buildPlatformProfiles = (identity) => {
     const isLinkedIn = platform.key === "linkedin";
     profiles[platform.key] = {
       platform: platform.name,
-      status: isLinkedIn && identity.linkedin_url ? "found" : "not_found",
+      status: isLinkedIn && identity.linkedin_url ? "found" : "no_signals",
       profile_url: isLinkedIn ? identity.linkedin_url || null : null,
       search_queries: buildSearchQueries(identity, platform.key)
     };
@@ -80,9 +80,10 @@ const detectLinkedInSignals = (employee, platformProfiles) => {
   const linkedInProfile = platformProfiles.linkedin;
 
   if (linkedInProfile?.status === "found") {
+    // Active profile is neutral — not a risk signal
     signals.push({
       signal: "Active LinkedIn profile",
-      weight: 10,
+      weight: 0,
       platform: "LinkedIn",
       category: "linkedin_signals"
     });
@@ -90,12 +91,15 @@ const detectLinkedInSignals = (employee, platformProfiles) => {
 
   if (employee.current_role && employee.linkedin_url) {
     signals.push({
-      signal: "LinkedIn profile aligned with current role",
+      signal: "Regular professional activity",
       weight: 0,
       platform: "LinkedIn",
       category: "linkedin_signals"
     });
   }
+
+  // These signals would normally come from an enrichment API.
+  // For now we accept them via the AI analysis pass.
 
   return signals;
 };
@@ -124,23 +128,51 @@ const detectGitHubSignals = async (githubUrl) => {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const recentEvents = events.filter((event) => new Date(event.created_at) > thirtyDaysAgo);
     const recentRepos = repos.filter((repo) => new Date(repo.updated_at) > thirtyDaysAgo);
-    const interviewPrepRepos = recentRepos.filter((repo) =>
-      /interview|leetcode|hackerrank|algo|dsa|coding.?challenge|prep|system.?design/i.test(repo.name)
+    const interviewPrepRepos = repos.filter((repo) =>
+      /interview|prep|mock.?interview/i.test(repo.name)
     );
+    const leetcodeRepos = repos.filter((repo) =>
+      /leetcode|hackerrank|algo|dsa|coding.?challenge|competitive/i.test(repo.name)
+    );
+    const systemDesignRepos = repos.filter((repo) =>
+      /system.?design|design.?patterns|architecture.?prep/i.test(repo.name)
+    );
+    const resumePortfolioRepos = repos.filter((repo) =>
+      /resume|portfolio|personal.?site|cv/i.test(repo.name)
+    );
+
     const signals = [];
 
     if (interviewPrepRepos.length > 0) {
       signals.push({
         signal: `Interview preparation repositories detected: ${interviewPrepRepos.map((repo) => repo.name).join(", ")}`,
-        weight: 10,
+        weight: 20,
         platform: "GitHub",
         category: "github_signals"
       });
     }
 
-    if (recentEvents.length > 20) {
+    if (leetcodeRepos.length > 0) {
       signals.push({
-        signal: "GitHub activity spike detected",
+        signal: `LeetCode / competitive coding repositories detected: ${leetcodeRepos.map((repo) => repo.name).join(", ")}`,
+        weight: 15,
+        platform: "GitHub",
+        category: "github_signals"
+      });
+    }
+
+    if (systemDesignRepos.length > 0) {
+      signals.push({
+        signal: `System design preparation repositories detected: ${systemDesignRepos.map((repo) => repo.name).join(", ")}`,
+        weight: 15,
+        platform: "GitHub",
+        category: "github_signals"
+      });
+    }
+
+    if (resumePortfolioRepos.length > 0) {
+      signals.push({
+        signal: `Resume or portfolio repositories detected: ${resumePortfolioRepos.map((repo) => repo.name).join(", ")}`,
         weight: 10,
         platform: "GitHub",
         category: "github_signals"
@@ -202,26 +234,22 @@ const calculateRiskBreakdown = (signals) => {
 };
 
 const calculateRiskLevel = (score) => {
-  if (score >= 61) return "HIGH";
-  if (score >= 31) return "MEDIUM";
+  if (score >= 51) return "HIGH";
+  if (score >= 21) return "MEDIUM";
   return "LOW";
 };
 
 const buildPrompt = (employee, signals, platformProfiles, githubActivity, riskBreakdown) => {
-  const signalList = signals.length > 0
-    ? signals.map((signal) => `- [${signal.platform}] ${signal.signal} (+${signal.weight})`).join("\n")
-    : "- No strong signals detected";
+  const signalList = signals.filter((s) => s.weight > 0).length > 0
+    ? signals.filter((s) => s.weight > 0).map((signal) => `- [${signal.platform}] ${signal.signal} (+${signal.weight})`).join("\n")
+    : "- No risk signals detected";
 
-  const platformScan = JOB_PLATFORMS
-    .map((platform) => {
-      const result = platformProfiles[platform.key];
-      return `- ${platform.name}: ${result?.status || "not_found"}${result?.profile_url ? ` (${result.profile_url})` : ""}`;
-    })
-    .join("\n");
 
   const githubSummary = githubActivity
     ? `GitHub Summary:\n- Username: ${githubActivity.username}\n- Hireable flag: ${githubActivity.hireable ? "Yes" : "No"}\n- Recent activity count: ${githubActivity.recent_activity_count}\n- Interview prep repos: ${githubActivity.interview_prep_repos.join(", ") || "None"}\n- Recent repos: ${githubActivity.recent_repo_names.join(", ") || "None"}`
     : "GitHub Summary:\n- Not available";
+
+  const riskLevel = calculateRiskLevel(riskBreakdown.total);
 
   return `You are an HR AI system generating a structured job-search risk report.
 
@@ -232,9 +260,6 @@ Employee:
 - LinkedIn URL: ${employee.linkedin_url}
 - GitHub URL: ${employee.github_url || "Not provided"}
 
-Job Platform Scan:
-${platformScan}
-
 Signals Detected:
 ${signalList}
 
@@ -243,25 +268,42 @@ Risk Score Breakdown:
 - GitHub signals: ${riskBreakdown.github_signals}
 - Job platform signals: ${riskBreakdown.job_platform_signals}
 - Total: ${riskBreakdown.total}
+- Risk Level: ${riskLevel}
 
 ${githubSummary}
 
+IMPORTANT RULES:
+- Your risk_score MUST equal ${riskBreakdown.total} and risk_level MUST be "${riskLevel}".
+- Only reference signals that were actually detected above.
+- For platforms we cannot verify (Naukri, Indeed, Glassdoor, Monster, Shine, TimesJobs), use status "no_signals" instead of "not_found".
+- LinkedIn status should be "found" if a URL exists, otherwise "no_signals".
+
+Analysis tone by risk level:
+- LOW: "[Name] shows normal professional activity. No indicators of active job searching were detected."
+- MEDIUM: Mention the specific detected signals and note they may indicate preparation for potential job opportunities.
+- HIGH: Note multiple strong job-search indicators and that the employee may be actively exploring new opportunities.
+
+Recommendation by risk level:
+- LOW: "Maintain regular engagement and monitor for major profile updates."
+- MEDIUM: "Consider discussing career growth opportunities and internal mobility."
+- HIGH: "Schedule a retention discussion and evaluate compensation or role progression."
+
 Return ONLY valid JSON using this exact shape:
 {
-  "risk_score": 20,
-  "risk_level": "LOW",
+  "risk_score": ${riskBreakdown.total},
+  "risk_level": "${riskLevel}",
   "platforms_scanned": {
     "linkedin": "found",
-    "naukri": "not_found",
-    "indeed": "not_found",
-    "glassdoor": "not_found",
-    "monster": "not_found",
-    "shine": "not_found",
-    "timesjobs": "not_found"
+    "naukri": "no_signals",
+    "indeed": "no_signals",
+    "glassdoor": "no_signals",
+    "monster": "no_signals",
+    "shine": "no_signals",
+    "timesjobs": "no_signals"
   },
-  "signals_detected": ["Active LinkedIn profile", "GitHub activity spike"],
-  "analysis": "Professional explanation of the risk result.",
-  "recommendation": "Actionable HR guidance."
+  "signals_detected": ["list only actually detected signals here"],
+  "analysis": "Professional explanation referencing only detected signals.",
+  "recommendation": "Actionable HR guidance based on risk level."
 }`;
 };
 
@@ -335,19 +377,26 @@ export const analyzeJobSearchRisk = async (employee) => {
     platformsFlagged
   });
 
+  const riskLevel = calculateRiskLevel(riskBreakdown.total);
+  const fallbackRecommendations = {
+    LOW: "Maintain regular engagement and monitor for major profile updates.",
+    MEDIUM: "Consider discussing career growth opportunities and internal mobility.",
+    HIGH: "Schedule a retention discussion and evaluate compensation or role progression."
+  };
+
   const fallback = {
     risk_score: riskBreakdown.total,
-    risk_level: calculateRiskLevel(riskBreakdown.total),
+    risk_level: riskLevel,
     reason: env.llmApiUrl && env.llmApiKey
       ? "AI analysis temporarily unavailable. Score is based on detected signals."
       : "AI analysis unavailable. Configure LLM API credentials.",
-    signals_detected: allSignals.map((signal) => signal.signal),
+    signals_detected: allSignals.filter((s) => s.weight > 0).map((s) => s.signal),
     platforms_scanned: platformsScanned,
     platforms_flagged: platformsFlagged,
     platform_profiles: platformProfiles,
     risk_breakdown: riskBreakdown,
     recommendation: env.llmApiUrl && env.llmApiKey
-      ? "Review the scan results and monitor for repeated changes over time."
+      ? fallbackRecommendations[riskLevel]
       : "Set up Gemini API keys to enable AI-powered analysis."
   };
 
@@ -364,10 +413,9 @@ export const analyzeJobSearchRisk = async (employee) => {
     }
 
     const parsed = JSON.parse(content);
-    const score = Math.min(100, Math.max(0, Number(parsed.risk_score) || riskBreakdown.total));
-    const level = ["LOW", "MEDIUM", "HIGH"].includes(parsed.risk_level?.toUpperCase())
-      ? parsed.risk_level.toUpperCase()
-      : calculateRiskLevel(score);
+    // Enforce the deterministic score — AI cannot override the signal-based calculation
+    const score = riskBreakdown.total;
+    const level = calculateRiskLevel(score);
 
     return {
       risk_score: score,
