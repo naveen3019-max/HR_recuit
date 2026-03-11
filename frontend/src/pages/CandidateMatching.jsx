@@ -167,12 +167,12 @@ const CandidateMatching = () => {
         <div className="card p-6">
           <h2 className="mb-4 text-lg font-semibold text-gray-900">Top Candidates</h2>
           {!results ? (
-            <div className="flex min-h-[220px] flex-col items-center justify-center text-center text-gray-500">
+            <div className="flex min-h-55 flex-col items-center justify-center text-center text-gray-500">
               <Briefcase className="mb-3 h-10 w-10 text-gray-300" />
               <p>Submit a role to rank open-to-work candidates and generate AI fit explanations.</p>
             </div>
           ) : results.results.length === 0 ? (
-            <div className="flex min-h-[220px] flex-col items-center justify-center text-center text-gray-500">
+            <div className="flex min-h-55 flex-col items-center justify-center text-center text-gray-500">
               <AlertCircle className="mb-3 h-10 w-10 text-gray-300" />
               <p>No open-to-work candidates matched this role yet.</p>
             </div>
