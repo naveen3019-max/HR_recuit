@@ -163,7 +163,7 @@ const generateAiExplanation = async (job, candidate) => {
 };
 
 export const matchCandidatesForJob = async (jobInput) => {
-  const candidates = await prisma.candidate.findMany({
+  let candidates = await prisma.candidate.findMany({
     where: { openToWork: true },
     select: {
       id: true,
@@ -182,6 +182,31 @@ export const matchCandidatesForJob = async (jobInput) => {
     orderBy: { createdAt: "desc" },
     take: 100
   });
+
+  // Fallback for legacy/imported records where openToWork was not explicitly set.
+  if (candidates.length === 0) {
+    candidates = await prisma.candidate.findMany({
+      where: {
+        linkedinUrl: { not: null }
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        currentRole: true,
+        skills: true,
+        experienceYears: true,
+        location: true,
+        linkedinUrl: true,
+        githubUrl: true,
+        summary: true,
+        openToWork: true,
+        createdAt: true
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100
+    });
+  }
 
   const requiredSkills = normalizeSkills(jobInput.required_skills);
 
