@@ -22,6 +22,7 @@ model User {
   updatedAt   DateTime      @updatedAt
   notes       CandidateNote[]
   activityLog ActivityLog[]
+  talentSearches TalentSearch[]
 }
 
 model RecruitmentStage {
@@ -53,10 +54,50 @@ model Candidate {
   stage            RecruitmentStage @relation(fields: [stageId], references: [id])
   notes            CandidateNote[]
   activityLog      ActivityLog[]
+  talentMatches    TalentSearchMatch[]
 
   @@index([skills], type: Gin)
   @@index([experienceYears])
   @@index([location])
+}
+
+model TalentSearch {
+  id                     Int                 @id @default(autoincrement())
+  recruiterId            Int
+  role                   String
+  experienceRequired     String?
+  location               String?
+  skills                 String[]
+  industry               String?
+  additionalRequirements String?
+  createdAt              DateTime            @default(now())
+  recruiter              User                @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+  matches                TalentSearchMatch[]
+
+  @@index([recruiterId])
+  @@index([createdAt])
+}
+
+model TalentSearchMatch {
+  id              Int         @id @default(autoincrement())
+  talentSearchId  Int
+  candidateId     Int
+  matchScore      Int
+  summary         String
+  strengths       String[]
+  recommendedRole String
+  roleFit         String?
+  shortlisted     Boolean     @default(false)
+  exported        Boolean     @default(false)
+  notes           String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  talentSearch    TalentSearch @relation(fields: [talentSearchId], references: [id], onDelete: Cascade)
+  candidate       Candidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([talentSearchId, candidateId])
+  @@index([candidateId])
+  @@index([matchScore])
 }
 
 model CandidateNote {

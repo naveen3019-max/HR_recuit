@@ -31,3 +31,12 @@ export const candidateMatchingLimiter = rateLimit({
     message: "Candidate matching limit exceeded. Please retry in 15 minutes."
   }
 });
+
+export const talentSearchLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: {
+    success: false,
+    message: "Talent search limit exceeded. Please retry in 15 minutes."
+  }
+});

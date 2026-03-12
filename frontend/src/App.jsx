@@ -8,6 +8,7 @@ import CandidateReport from "./pages/CandidateReport";
 import EmployeeMonitoring from "./pages/EmployeeMonitoring";
 import CandidateMatching from "./pages/CandidateMatching";
 import JobRoleMatching from "./pages/JobRoleMatching";
+import TalentSearch from "./pages/TalentSearch";
 import Login from "./pages/Login";
 import api from "./services/api";
 import { useAuth } from "./context/AuthContext";
@@ -56,6 +57,7 @@ const App = () => {
         <Route path="/employees" element={<EmployeeMonitoring />} />
         <Route path="/candidate-matching" element={<CandidateMatching />} />
         <Route path="/job-roles" element={<JobRoleMatching />} />
+        <Route path="/talent-search" element={<TalentSearch />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

@@ -11,6 +11,7 @@ import aiRoutes from "./routes/aiRoutes.js";
 import employeeRoutes from "./routes/employeeRoutes.js";
 import jobRoleRoutes from "./routes/jobRoleRoutes.js";
 import jobsRoutes from "./routes/jobsRoutes.js";
+import talentRoutes from "./routes/talentRoutes.js";
 import { errorHandler, notFound } from "./middleware/errorHandler.js";
 import { aiLimiter, apiLimiter } from "./middleware/rateLimitMiddleware.js";
 import { logError, logInfo } from "./utils/logger.js";
@@ -52,6 +53,7 @@ app.use("/api/ai", aiLimiter, aiRoutes);
 app.use("/api/employees", employeeRoutes);
 app.use("/api/job-roles", jobRoleRoutes);
 app.use("/api/jobs", jobsRoutes);
+app.use("/api/talent", talentRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
