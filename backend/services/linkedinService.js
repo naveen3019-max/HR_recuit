@@ -43,9 +43,15 @@ export const fetchLinkedinProfiles = async (recruiterAccessToken, profileIds) =>
 
   const responses = await Promise.allSettled(requests);
 
-  return responses
+  const profiles = responses
     .filter((result) => result.status === "fulfilled")
     .map((result) => result.value.data);
+
+  if (profiles.length === 0) {
+    throw new ApiError(502, "Failed to fetch profiles from LinkedIn. Verify access token and profile IDs.");
+  }
+
+  return profiles;
 };
 
 export const importLinkedinCandidates = async ({ recruiterAccessToken, profileIds }, userId) => {
