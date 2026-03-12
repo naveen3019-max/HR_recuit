@@ -3,7 +3,8 @@ import env from "../config/env.js";
 import prisma from "../config/db.js";
 import { ApiError } from "../utils/apiError.js";
 
-const mapLinkedinProfileToCandidate = (profile) => {
+const mapLinkedinProfileToCandidate = (profile, options = {}) => {
+  const { openToWork = true } = options;
   return {
     name: profile.fullName || `${profile.firstName || ""} ${profile.lastName || ""}`.trim(),
     phone: profile.phoneNumber || null,
@@ -16,7 +17,8 @@ const mapLinkedinProfileToCandidate = (profile) => {
     experienceYears: profile.experienceYears || 0,
     education: profile.education || null,
     location: profile.location || null,
-    resumeUrl: profile.resumeUrl || null
+    resumeUrl: profile.resumeUrl || null,
+    openToWork
   };
 };
 
@@ -53,7 +55,7 @@ export const importLinkedinCandidates = async ({ recruiterAccessToken, profileId
   const imported = [];
 
   for (const profile of profiles) {
-    const candidateData = mapLinkedinProfileToCandidate(profile);
+    const candidateData = mapLinkedinProfileToCandidate(profile, { openToWork: true });
 
     const candidate = await prisma.candidate.create({
       data: {
@@ -99,7 +101,8 @@ export const syncLinkedinCandidate = async ({ recruiterAccessToken, candidateId,
 
   const candidate = await prisma.candidate.update({
     where: { id: candidateId },
-    data: mapLinkedinProfileToCandidate(profile),
+    // Keep existing flag if recruiter has set it manually.
+    data: mapLinkedinProfileToCandidate(profile, { openToWork: existing.openToWork }),
     include: { stage: true }
   });
 

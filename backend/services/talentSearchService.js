@@ -130,7 +130,7 @@ const mapTalentMatch = (record) => ({
 });
 
 export const runTalentSearch = async (jobInput, recruiterId) => {
-  const candidates = await prisma.candidate.findMany({
+  let candidates = await prisma.candidate.findMany({
     where: {
       openToWork: true
     },
@@ -147,6 +147,27 @@ export const runTalentSearch = async (jobInput, recruiterId) => {
     orderBy: { createdAt: "desc" },
     take: 40
   });
+
+  // Fallback: if no explicit open-to-work records exist, include LinkedIn-imported profiles.
+  if (candidates.length === 0) {
+    candidates = await prisma.candidate.findMany({
+      where: {
+        linkedinUrl: { not: null }
+      },
+      select: {
+        id: true,
+        name: true,
+        currentRole: true,
+        experienceYears: true,
+        skills: true,
+        location: true,
+        linkedinUrl: true,
+        summary: true
+      },
+      orderBy: { createdAt: "desc" },
+      take: 40
+    });
+  }
 
   const searchRecord = await prisma.talentSearch.create({
     data: {
