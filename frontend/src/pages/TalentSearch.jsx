@@ -30,6 +30,9 @@ const TalentSearch = () => {
   const [savingMatchId, setSavingMatchId] = useState(null);
   const [noteDrafts, setNoteDrafts] = useState({});
   const [formData, setFormData] = useState({
+    source: "database",
+    recruiter_access_token: "",
+    linkedin_profile_ids: [],
     role: "",
     experience_required: "",
     location: "",
@@ -81,10 +84,16 @@ const TalentSearch = () => {
     setLoading(true);
 
     try {
-      const { data } = await api.post("/talent/search", formData);
+      const payload = {
+        ...formData,
+        linkedin_profile_ids: formData.source === "linkedin" ? formData.linkedin_profile_ids : []
+      };
+
+      const { data } = await api.post("/talent/search", payload);
       setResults(data.results || []);
       setSearchMeta({
         search_id: data.search_id,
+        source: data.source,
         role: data.role,
         total_candidates: data.total_candidates,
         searched_at: data.searched_at
@@ -140,6 +149,50 @@ const TalentSearch = () => {
         <div className="card p-6">
           <h2 className="mb-4 text-lg font-semibold text-gray-900">Job Description Input</h2>
           <form onSubmit={handleSearch} className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Search Source</label>
+              <select name="source" value={formData.source} onChange={handleChange} className="input-field">
+                <option value="database">Database Candidates</option>
+                <option value="linkedin">LinkedIn Profiles (Live Fetch)</option>
+              </select>
+            </div>
+
+            {formData.source === "linkedin" && (
+              <>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">LinkedIn Recruiter Access Token *</label>
+                  <input
+                    type="password"
+                    name="recruiter_access_token"
+                    value={formData.recruiter_access_token}
+                    onChange={handleChange}
+                    placeholder="Paste LinkedIn access token"
+                    className="input-field"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">LinkedIn Profile IDs *</label>
+                  <textarea
+                    value={formData.linkedin_profile_ids.join("\n")}
+                    onChange={(event) =>
+                      setFormData((previous) => ({
+                        ...previous,
+                        linkedin_profile_ids: event.target.value
+                          .split(/[,\n]/)
+                          .map((item) => item.trim())
+                          .filter(Boolean)
+                      }))
+                    }
+                    rows={4}
+                    placeholder="Enter LinkedIn profile IDs, one per line"
+                    className="input-field"
+                    required
+                  />
+                </div>
+              </>
+            )}
+
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Role *</label>
               <input
@@ -255,6 +308,7 @@ const TalentSearch = () => {
                 <div className="rounded-xl bg-primary-50 p-4 text-primary-900">
                   <p className="font-semibold">{searchMeta.total_candidates} candidates ranked for {searchMeta.role}</p>
                   <p className="mt-1 text-sm text-primary-700">Search ID: {searchMeta.search_id}</p>
+                  <p className="mt-1 text-xs text-primary-700">Source: {searchMeta.source === "linkedin" ? "LinkedIn" : "Database"}</p>
                 </div>
               )}
 
