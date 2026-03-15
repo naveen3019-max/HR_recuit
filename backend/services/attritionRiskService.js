@@ -101,6 +101,8 @@ const detectSignalFlags = async (employee) => {
 
   const lowEngagement = typeof employee.engagement_score === "number" && employee.engagement_score < 50;
   const lowPerformance = typeof employee.performance_score === "number" && employee.performance_score < 60;
+  const attendanceConcern = typeof employee.attendance_score === "number" && employee.attendance_score < 60;
+  const managerConcern = Boolean(employee.manager_concern);
   const salaryBelowMarket = typeof employee.salary === "number"
     && typeof employee.market_salary === "number"
     && employee.salary < employee.market_salary;
@@ -116,6 +118,8 @@ const detectSignalFlags = async (employee) => {
     job_platform_verification_source: jobPlatformSignals.verification_source,
     low_engagement_score: lowEngagement,
     low_performance_score: lowPerformance,
+    attendance_concern: attendanceConcern,
+    manager_concern: managerConcern,
     salary_below_market: salaryBelowMarket,
     experience_less_than_one_year: lessThanOneYearExp
   };
@@ -129,6 +133,8 @@ const computeScore = (flags) => {
   if (flags.job_platform_account_detected) score += 20;
   if (flags.low_engagement_score) score += 30;
   if (flags.low_performance_score) score += 20;
+  if (flags.attendance_concern) score += 15;
+  if (flags.manager_concern) score += 15;
   if (flags.salary_below_market) score += 25;
   if (flags.experience_less_than_one_year) score += 10;
 
@@ -161,6 +167,12 @@ const buildDetectedSignals = (flags) => {
   }
   if (flags.low_performance_score) {
     signals.push("Low performance score (<60)");
+  }
+  if (flags.attendance_concern) {
+    signals.push("Attendance concern detected (<60)");
+  }
+  if (flags.manager_concern) {
+    signals.push("Manager concern flagged");
   }
   if (flags.salary_below_market) {
     signals.push("Salary below market average");
@@ -252,12 +264,22 @@ export const analyzeAttritionRisk = async (employee) => {
 
   const recommendation = RECOMMENDATIONS[level];
 
+  const externalVerificationUnavailable =
+    flags.linkedin_verification_source === "not_verified"
+    && flags.job_platform_verification_source === "not_verified";
+
+  const zeroScoreAnalysis = externalVerificationUnavailable
+    ? `${employee.name} currently has no internal risk indicators (engagement/performance/attendance/manager concern/experience). LinkedIn and job-platform verification APIs are not configured, so external job-search signals could not be validated.`
+    : `${employee.name} currently has no active attrition risk indicators from the available verified data.`;
+
   const fallback = {
     risk_score: score,
     risk_level: level,
     signals_detected: detectedSignals,
-    analysis: level === "LOW"
-      ? `${employee.name} shows stable engagement with no strong attrition indicators right now.`
+    analysis: score === 0
+      ? zeroScoreAnalysis
+      : level === "LOW"
+        ? `${employee.name} shows stable engagement with no strong attrition indicators right now.`
       : level === "MEDIUM"
         ? `${employee.name} shows moderate attrition indicators that should be discussed proactively.`
         : `${employee.name} shows multiple strong attrition signals and may be at high risk of leaving.`,
