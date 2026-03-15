@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, BarChart3, Briefcase, Calendar, Loader2, Plus, Save, ShieldAlert, User, Users } from "lucide-react";
+import { AlertCircle, BarChart3, Briefcase, Loader2, Plus, Save, ShieldAlert, Users } from "lucide-react";
 import api from "../services/api";
 
 const riskBadge = {
@@ -19,18 +19,15 @@ const actionOptions = [
 
 const emptyEmployeeForm = {
   employee_id: "",
-  linkedin_username: "",
   name: "",
   email: "",
   department: "",
   current_role: "",
   salary: "",
   experience: "",
-  join_date: "",
   performance_score: "",
   engagement_score: "",
   attendance_score: "",
-  market_salary: "",
   manager_concern: false,
   linkedin_url: "",
   github_url: ""
@@ -111,18 +108,16 @@ const AttritionDashboard = () => {
     try {
       await api.post("/employees", {
         employee_id: employeeForm.employee_id || undefined,
-        linkedin_username: employeeForm.linkedin_username || undefined,
         name: employeeForm.name,
         email: employeeForm.email,
         department: employeeForm.department || undefined,
         current_role: employeeForm.current_role || undefined,
         salary: employeeForm.salary ? Number(employeeForm.salary) : undefined,
         experience: employeeForm.experience ? Number(employeeForm.experience) : undefined,
-        join_date: employeeForm.join_date ? new Date(employeeForm.join_date).toISOString() : undefined,
         performance_score: employeeForm.performance_score ? Number(employeeForm.performance_score) : undefined,
         engagement_score: employeeForm.engagement_score ? Number(employeeForm.engagement_score) : undefined,
         attendance_score: employeeForm.attendance_score ? Number(employeeForm.attendance_score) : undefined,
-        market_salary: employeeForm.market_salary ? Number(employeeForm.market_salary) : undefined,
+        market_salary: employeeForm.salary ? Number(employeeForm.salary) : undefined,
         manager_concern: Boolean(employeeForm.manager_concern),
         linkedin_url: employeeForm.linkedin_url,
         github_url: employeeForm.github_url || undefined
@@ -228,18 +223,15 @@ const AttritionDashboard = () => {
             <h2 className="mb-4 text-lg font-semibold text-gray-900">Add Employee Data</h2>
             <form className="grid gap-4 sm:grid-cols-2" onSubmit={submitEmployee}>
               <input className="input-field" name="employee_id" value={employeeForm.employee_id} onChange={onEmployeeField} placeholder="Employee ID" />
-              <input className="input-field" name="linkedin_username" value={employeeForm.linkedin_username} onChange={onEmployeeField} placeholder="LinkedIn Username" />
               <input className="input-field" name="name" value={employeeForm.name} onChange={onEmployeeField} placeholder="Name" required />
               <input className="input-field" name="email" value={employeeForm.email} onChange={onEmployeeField} placeholder="Email" type="email" required />
               <input className="input-field" name="department" value={employeeForm.department} onChange={onEmployeeField} placeholder="Department" />
               <input className="input-field" name="current_role" value={employeeForm.current_role} onChange={onEmployeeField} placeholder="Role" />
-              <input className="input-field" name="salary" value={employeeForm.salary} onChange={onEmployeeField} placeholder="Salary" type="number" min="0" />
+              <input className="input-field" name="salary" value={employeeForm.salary} onChange={onEmployeeField} placeholder="Current Salary" type="number" min="0" />
               <input className="input-field" name="experience" value={employeeForm.experience} onChange={onEmployeeField} placeholder="Experience (years)" type="number" min="0" step="0.1" />
-              <input className="input-field" name="join_date" value={employeeForm.join_date} onChange={onEmployeeField} type="date" />
               <input className="input-field" name="performance_score" value={employeeForm.performance_score} onChange={onEmployeeField} placeholder="Performance Score (0-100)" type="number" min="0" max="100" />
               <input className="input-field" name="engagement_score" value={employeeForm.engagement_score} onChange={onEmployeeField} placeholder="Engagement Score (0-100)" type="number" min="0" max="100" />
               <input className="input-field" name="attendance_score" value={employeeForm.attendance_score} onChange={onEmployeeField} placeholder="Attendance Score (0-100)" type="number" min="0" max="100" />
-              <input className="input-field" name="market_salary" value={employeeForm.market_salary} onChange={onEmployeeField} placeholder="Market Salary" type="number" min="0" />
               <input className="input-field sm:col-span-2" name="linkedin_url" value={employeeForm.linkedin_url} onChange={onEmployeeField} placeholder="LinkedIn URL" required />
               <input className="input-field sm:col-span-2" name="github_url" value={employeeForm.github_url} onChange={onEmployeeField} placeholder="GitHub URL (optional)" />
               <label className="sm:col-span-2 flex items-center gap-2 text-sm text-gray-700">
@@ -276,7 +268,6 @@ const AttritionDashboard = () => {
                   <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500">
                     <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {employee.employee_id || `EMP-${employee.id}`}</span>
                     <span className="inline-flex items-center gap-1"><Briefcase className="h-3.5 w-3.5" /> Exp: {employee.experience ?? 0}y</span>
-                    <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Joined: {employee.join_date ? new Date(employee.join_date).toLocaleDateString() : "N/A"}</span>
                   </div>
                 </div>
                 <div className="flex flex-col gap-2 sm:items-end">

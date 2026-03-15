@@ -14,27 +14,19 @@ const RECOMMENDATIONS = {
 };
 
 const detectSignalFlags = async (employee) => {
-  const joinDate = employee.join_date ? new Date(employee.join_date) : null;
-  const yearsAtCompany = joinDate
-    ? (Date.now() - joinDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000)
-    : null;
-
   const lowEngagement = typeof employee.engagement_score === "number" && employee.engagement_score < 50;
   const lowPerformance = typeof employee.performance_score === "number" && employee.performance_score < 60;
   const salaryBelowMarket = typeof employee.salary === "number"
     && typeof employee.market_salary === "number"
     && employee.salary < employee.market_salary;
   const lessThanOneYearExp = typeof employee.experience === "number" && employee.experience < 1;
-  const moreThanFourYearsTenure = typeof yearsAtCompany === "number" && yearsAtCompany > 4;
 
   return {
-    linkedin_username: employee.linkedin_username || null,
-    linkedin_profile_found: Boolean(employee.linkedin_url || employee.linkedin_username),
+    linkedin_profile_found: Boolean(employee.linkedin_url),
     low_engagement_score: lowEngagement,
     low_performance_score: lowPerformance,
     salary_below_market: salaryBelowMarket,
-    experience_less_than_one_year: lessThanOneYearExp,
-    tenure_more_than_four_years: moreThanFourYearsTenure
+    experience_less_than_one_year: lessThanOneYearExp
   };
 };
 
@@ -45,7 +37,6 @@ const computeScore = (flags) => {
   if (flags.low_performance_score) score += 20;
   if (flags.salary_below_market) score += 25;
   if (flags.experience_less_than_one_year) score += 10;
-  if (flags.tenure_more_than_four_years) score += 10;
 
   return Math.min(100, score);
 };
@@ -73,9 +64,6 @@ const buildDetectedSignals = (flags) => {
   }
   if (flags.experience_less_than_one_year) {
     signals.push("Experience less than 1 year");
-  }
-  if (flags.tenure_more_than_four_years) {
-    signals.push("Tenure more than 4 years");
   }
 
   return signals;

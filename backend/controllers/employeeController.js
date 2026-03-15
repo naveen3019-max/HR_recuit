@@ -95,7 +95,6 @@ export const listAttritionRisksHandler = async (req, res, next) => {
     const risks = await listAttritionRisks();
     const normalized = risks.map((item) => ({
       employee_id: item.employee.employeeCode,
-      linkedin_username: item.employee.linkedinUsername,
       employee_db_id: item.employee.id,
       name: item.employee.name,
       department: item.employee.department,

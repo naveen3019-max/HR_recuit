@@ -8,13 +8,10 @@ export const createEmployeeSchema = z.object({
     employee_id: z.string().max(60).optional().or(z.literal("")),
     name: z.string().min(2).max(100),
     email: z.string().email(),
-    linkedin_username: z.string().min(2).max(100).optional().or(z.literal("")),
     linkedin_url: z
       .string()
       .url()
-      .regex(linkedinUrlPattern, "Must be a valid LinkedIn URL")
-      .optional()
-      .or(z.literal("")),
+      .regex(linkedinUrlPattern, "Must be a valid LinkedIn URL"),
     github_url: z
       .string()
       .url()
@@ -33,9 +30,6 @@ export const createEmployeeSchema = z.object({
     market_salary: z.number().min(0).optional(),
     resume_updated_at: z.string().datetime().optional(),
     linkedin_updated_at: z.string().datetime().optional()
-  }).refine((data) => Boolean(data.linkedin_url || data.linkedin_username), {
-    message: "Either linkedin_url or linkedin_username is required",
-    path: ["linkedin_username"]
   })
 });
 
@@ -47,7 +41,6 @@ export const updateEmployeeSchema = z.object({
     employee_id: z.string().max(60).optional().or(z.literal("")),
     name: z.string().min(2).max(100).optional(),
     email: z.string().email().optional(),
-    linkedin_username: z.string().min(2).max(100).optional().or(z.literal("")),
     linkedin_url: z
       .string()
       .url()

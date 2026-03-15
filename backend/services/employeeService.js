@@ -17,7 +17,6 @@ const normalizeEmployee = (emp) => ({
   employee_id: emp.employeeCode,
   name: emp.name,
   email: emp.email,
-  linkedin_username: emp.linkedinUsername,
   linkedin_url: emp.linkedinUrl,
   github_url: emp.githubUrl,
   department: emp.department,
@@ -46,16 +45,13 @@ const normalizeEmployee = (emp) => ({
 });
 
 export const createEmployee = async (payload) => {
-  const linkedinUrl = payload.linkedin_url
-    || (payload.linkedin_username ? `https://www.linkedin.com/in/${payload.linkedin_username}` : null);
-
   const employee = await prisma.employee.create({
     data: {
       employeeCode: payload.employee_id || null,
       name: payload.name,
       email: payload.email,
-      linkedinUsername: payload.linkedin_username || null,
-      linkedinUrl,
+      linkedinUsername: null,
+      linkedinUrl: payload.linkedin_url,
       githubUrl: payload.github_url || null,
       department: payload.department || null,
       currentRole: payload.current_role || null,
@@ -66,7 +62,7 @@ export const createEmployee = async (payload) => {
       engagementScore: payload.engagement_score || null,
       attendanceScore: payload.attendance_score || null,
       managerConcern: payload.manager_concern || false,
-      marketSalary: payload.market_salary || null,
+      marketSalary: payload.market_salary ?? payload.salary ?? null,
       resumeUpdatedAt: payload.resume_updated_at ? new Date(payload.resume_updated_at) : null,
       linkedinUpdatedAt: payload.linkedin_updated_at ? new Date(payload.linkedin_updated_at) : null
     }
@@ -91,18 +87,13 @@ export const updateEmployee = async (id, payload) => {
   const existing = await prisma.employee.findUnique({ where: { id } });
   if (!existing) throw new ApiError(404, "Employee not found");
 
-  const linkedinUrl = payload.linkedin_url !== undefined
-    ? (payload.linkedin_url || (payload.linkedin_username ? `https://www.linkedin.com/in/${payload.linkedin_username}` : null))
-    : undefined;
-
   const employee = await prisma.employee.update({
     where: { id },
     data: {
       ...(payload.employee_id !== undefined && { employeeCode: payload.employee_id || null }),
       ...(payload.name && { name: payload.name }),
       ...(payload.email && { email: payload.email }),
-      ...(payload.linkedin_username !== undefined && { linkedinUsername: payload.linkedin_username || null }),
-      ...(linkedinUrl !== undefined && { linkedinUrl }),
+      ...(payload.linkedin_url !== undefined && { linkedinUrl: payload.linkedin_url || null }),
       ...(payload.github_url !== undefined && { githubUrl: payload.github_url || null }),
       ...(payload.department !== undefined && { department: payload.department || null }),
       ...(payload.current_role !== undefined && { currentRole: payload.current_role || null }),
@@ -113,7 +104,9 @@ export const updateEmployee = async (id, payload) => {
       ...(payload.engagement_score !== undefined && { engagementScore: payload.engagement_score }),
       ...(payload.attendance_score !== undefined && { attendanceScore: payload.attendance_score }),
       ...(payload.manager_concern !== undefined && { managerConcern: payload.manager_concern }),
-      ...(payload.market_salary !== undefined && { marketSalary: payload.market_salary }),
+      ...((payload.market_salary !== undefined || payload.salary !== undefined) && {
+        marketSalary: payload.market_salary ?? payload.salary ?? null
+      }),
       ...(payload.resume_updated_at !== undefined && { resumeUpdatedAt: payload.resume_updated_at ? new Date(payload.resume_updated_at) : null }),
       ...(payload.linkedin_updated_at !== undefined && { linkedinUpdatedAt: payload.linkedin_updated_at ? new Date(payload.linkedin_updated_at) : null })
     }
