@@ -16,6 +16,13 @@ const PLATFORM_LABELS = JOB_PLATFORMS.reduce((acc, p) => {
   return acc;
 }, {});
 
+const normalizePlatformKey = (value) => {
+  if (!value) return null;
+  const normalized = String(value).toLowerCase().replace(/\s+/g, "");
+  if (normalized === "timejobs" || normalized === "timesjob") return "timesjobs";
+  return Object.prototype.hasOwnProperty.call(PLATFORM_LABELS, normalized) ? normalized : null;
+};
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const extractGithubUsername = (url) => {
@@ -30,14 +37,46 @@ const extractGithubUsername = (url) => {
 
 // ─── Step 1 — Signal Collection ─────────────────────────────────────────────
 
-const collectLinkedInSignals = (employee) => {
+const collectLinkedInSignals = async (employee) => {
   const hasProfile = Boolean(employee.linkedin_url);
-  return {
+  const baseSignals = {
     profile_found: hasProfile,
-    open_to_work: false,        // requires enrichment API — not available
+    open_to_work: false,
     recent_profile_update: false,
-    headline_change: false
+    headline_change: false,
+    verification_source: hasProfile ? "not_verified" : "not_provided"
   };
+
+  if (!hasProfile || !env.linkedinApiToken) {
+    return baseSignals;
+  }
+
+  try {
+    // This endpoint supports enterprise/proxy enrichers that can expose Open-to-Work.
+    const baseUrl = env.linkedinApiBaseUrl.replace(/\/+$/, "");
+    const response = await fetch(`${baseUrl}/people?profileUrl=${encodeURIComponent(employee.linkedin_url)}`, {
+      headers: {
+        Authorization: `Bearer ${env.linkedinApiToken}`,
+        Accept: "application/json"
+      }
+    });
+
+    if (!response.ok) {
+      return baseSignals;
+    }
+
+    const profile = await response.json();
+    return {
+      ...baseSignals,
+      open_to_work: Boolean(profile?.openToWork),
+      recent_profile_update: Boolean(profile?.recentProfileUpdate),
+      headline_change: Boolean(profile?.headlineChangedRecently),
+      verification_source: "linkedin_api"
+    };
+  } catch (error) {
+    logError("LinkedIn enrichment failed", { error: error.message });
+    return baseSignals;
+  }
 };
 
 const collectGitHubSignals = async (githubUrl) => {
@@ -109,9 +148,49 @@ const collectGitHubSignals = async (githubUrl) => {
   }
 };
 
-const collectJobPlatformSignals = () => ({
-  signals_detected: false
-});
+const collectJobPlatformSignals = async (employee) => {
+  const base = {
+    signals_detected: false,
+    detected_platforms: [],
+    verification_source: "not_verified"
+  };
+
+  if (!employee.email || !env.jobPlatformLookupApiUrl) {
+    return base;
+  }
+
+  try {
+    const headers = { "Content-Type": "application/json", Accept: "application/json" };
+    if (env.jobPlatformLookupApiToken) {
+      headers.Authorization = `Bearer ${env.jobPlatformLookupApiToken}`;
+    }
+
+    // Expected response shape: { foundPlatforms: ["naukri", "indeed"] }
+    const response = await fetch(env.jobPlatformLookupApiUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email: employee.email })
+    });
+
+    if (!response.ok) {
+      return base;
+    }
+
+    const payload = await response.json();
+    const detectedPlatforms = Array.isArray(payload?.foundPlatforms)
+      ? payload.foundPlatforms.map(normalizePlatformKey).filter(Boolean)
+      : [];
+
+    return {
+      signals_detected: detectedPlatforms.length > 0,
+      detected_platforms: [...new Set(detectedPlatforms)],
+      verification_source: "email_lookup_api"
+    };
+  } catch (error) {
+    logError("Job platform email lookup failed", { error: error.message });
+    return base;
+  }
+};
 
 // ─── Step 2 — Deterministic Risk Scoring Engine ─────────────────────────────
 
@@ -180,6 +259,9 @@ const buildSignalSummary = (signals) => {
   }
 
   if (signals.job_platforms.signals_detected) detected.push("Job platform activity signals detected");
+  for (const platformKey of signals.job_platforms.detected_platforms || []) {
+    detected.push(`Account detected on ${PLATFORM_LABELS[platformKey]} via email lookup`);
+  }
 
   return detected;
 };
@@ -266,13 +348,16 @@ const RECOMMENDATIONS = {
 
 // ─── Build platform profiles for frontend ───────────────────────────────────
 
-const buildPlatformProfiles = (employee) => {
+const buildPlatformProfiles = (employee, detectedPlatforms = []) => {
+  const detectedSet = new Set(detectedPlatforms);
   const profiles = {};
   for (const platform of JOB_PLATFORMS) {
     const isLinkedIn = platform.key === "linkedin";
     profiles[platform.key] = {
       platform: platform.name,
-      status: isLinkedIn && employee.linkedin_url ? "found" : "no_signals",
+      status: isLinkedIn
+        ? (employee.linkedin_url ? "found" : "no_signals")
+        : (detectedSet.has(platform.key) ? "found" : "no_signals"),
       profile_url: isLinkedIn ? employee.linkedin_url || null : null
     };
   }
@@ -283,10 +368,12 @@ const buildPlatformProfiles = (employee) => {
 
 export const analyzeJobSearchRisk = async (employee) => {
   // Step 1 — Collect structured signals
+  const linkedInSignals = await collectLinkedInSignals(employee);
+  const platformSignals = await collectJobPlatformSignals(employee);
   const signals = {
-    linkedin: collectLinkedInSignals(employee),
+    linkedin: linkedInSignals,
     github: await collectGitHubSignals(employee.github_url),
-    job_platforms: collectJobPlatformSignals()
+    job_platforms: platformSignals
   };
 
   // Step 2 — Deterministic risk score
@@ -304,7 +391,7 @@ export const analyzeJobSearchRisk = async (employee) => {
   logInfo("Risk level:", { level });
 
   // Build platform data for frontend
-  const platformProfiles = buildPlatformProfiles(employee);
+  const platformProfiles = buildPlatformProfiles(employee, signals.job_platforms.detected_platforms || []);
   const platformsScanned = Object.entries(platformProfiles).reduce((acc, [key, val]) => {
     acc[key] = val.status;
     return acc;
@@ -314,6 +401,11 @@ export const analyzeJobSearchRisk = async (employee) => {
     .map(([key]) => PLATFORM_LABELS[key]);
 
   if (signalSummary.some((s) => s.includes("GitHub"))) platformsFlagged.push("GitHub");
+  for (const platformKey of signals.job_platforms.detected_platforms || []) {
+    if (PLATFORM_LABELS[platformKey]) {
+      platformsFlagged.push(PLATFORM_LABELS[platformKey]);
+    }
+  }
 
   const riskBreakdown = {
     linkedin_signals: Object.entries(SCORING_RULES.linkedin).reduce(
