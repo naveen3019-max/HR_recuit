@@ -9,6 +9,7 @@ import EmployeeMonitoring from "./pages/EmployeeMonitoring";
 import CandidateMatching from "./pages/CandidateMatching";
 import JobRoleMatching from "./pages/JobRoleMatching";
 import TalentSearch from "./pages/TalentSearch";
+import AttritionDashboard from "./pages/AttritionDashboard";
 import Login from "./pages/Login";
 import api from "./services/api";
 import { useAuth } from "./context/AuthContext";
@@ -55,6 +56,7 @@ const App = () => {
         <Route path="/candidates" element={<CandidatesList candidates={candidates} />} />
         <Route path="/candidates/:id" element={<CandidateReport />} />
         <Route path="/employees" element={<EmployeeMonitoring />} />
+        <Route path="/attrition" element={<AttritionDashboard />} />
         <Route path="/candidate-matching" element={<CandidateMatching />} />
         <Route path="/job-roles" element={<JobRoleMatching />} />
         <Route path="/talent-search" element={<TalentSearch />} />

@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, UserPlus, Users, LogOut, Activity, Briefcase, Search } from "lucide-react";
+import { LayoutDashboard, UserPlus, Users, LogOut, Activity, Briefcase, Search, BarChart3 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const navigation = [
@@ -7,6 +7,7 @@ const navigation = [
   { name: "Add Candidate", href: "/add-candidate", icon: UserPlus },
   { name: "All Candidates", href: "/candidates", icon: Users },
   { name: "Employee Monitor", href: "/employees", icon: Activity },
+  { name: "Attrition", href: "/attrition", icon: BarChart3 },
   { name: "Candidate Matching", href: "/candidate-matching", icon: Briefcase },
   { name: "Talent Search", href: "/talent-search", icon: Search },
 ];

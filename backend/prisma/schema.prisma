@@ -23,6 +23,7 @@ model User {
   notes       CandidateNote[]
   activityLog ActivityLog[]
   talentSearches TalentSearch[]
+  retentionActions RetentionAction[]
 }
 
 model RecruitmentStage {
@@ -123,12 +124,24 @@ model ActivityLog {
 
 model Employee {
   id               Int       @id @default(autoincrement())
+  employeeCode     String?   @unique
   name             String
   email            String    @unique
+  linkedinUsername String?
   linkedinUrl      String
   githubUrl        String?
+  department       String?
   currentRole      String?
   salary           Float?
+  experience       Float?
+  joinDate         DateTime?
+  performanceScore Float?
+  engagementScore  Float?
+  attendanceScore  Float?
+  managerConcern   Boolean   @default(false)
+  marketSalary     Float?
+  resumeUpdatedAt  DateTime?
+  linkedinUpdatedAt DateTime?
   riskScore        Float?
   riskLevel        String?
   riskReason       String?
@@ -139,6 +152,54 @@ model Employee {
   recommendation   String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
+  signals          EmployeeSignal[]
+  attritionRisk    AttritionRisk?
+  retentionActions RetentionAction[]
+}
+
+model EmployeeSignal {
+  id           Int      @id @default(autoincrement())
+  employeeId   Int
+  signalType   String
+  signalValue  String
+  detectedDate DateTime @default(now())
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([signalType])
+  @@index([detectedDate])
+}
+
+model AttritionRisk {
+  id             Int      @id @default(autoincrement())
+  employeeId     Int      @unique
+  riskScore      Int
+  riskLevel      String
+  reasons        String[]
+  aiExplanation  String?
+  recommendation String?
+  lastCalculated DateTime @updatedAt
+  createdAt      DateTime @default(now())
+  employee       Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([riskLevel])
+  @@index([riskScore])
+}
+
+model RetentionAction {
+  id         Int      @id @default(autoincrement())
+  employeeId Int
+  hrId       Int?
+  actionType String
+  notes      String?
+  date       DateTime @default(now())
+  createdAt  DateTime @default(now())
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  hr         User?    @relation(fields: [hrId], references: [id], onDelete: SetNull)
+
+  @@index([employeeId])
+  @@index([hrId])
+  @@index([date])
 }
 
 model JobRole {
