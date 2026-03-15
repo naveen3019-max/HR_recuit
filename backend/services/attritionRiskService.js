@@ -2,6 +2,86 @@ import env from "../config/env.js";
 import prisma from "../config/db.js";
 import { logError } from "../utils/logger.js";
 
+const JOB_PLATFORM_KEYS = ["naukri", "indeed", "glassdoor", "monster", "shine", "timesjobs"];
+
+const normalizePlatformKey = (value) => {
+  if (!value) return null;
+  const normalized = String(value).toLowerCase().replace(/\s+/g, "");
+  if (normalized === "timejobs" || normalized === "timesjob") return "timesjobs";
+  return JOB_PLATFORM_KEYS.includes(normalized) ? normalized : null;
+};
+
+const fetchLinkedInSignals = async (linkedinUrl) => {
+  const base = {
+    open_to_work: false,
+    linkedin_recent_update: false,
+    verification_source: linkedinUrl ? "not_verified" : "not_provided"
+  };
+
+  if (!linkedinUrl || !env.linkedinApiToken) return base;
+
+  try {
+    const apiBase = env.linkedinApiBaseUrl.replace(/\/+$/, "");
+    const response = await fetch(`${apiBase}/people?profileUrl=${encodeURIComponent(linkedinUrl)}`, {
+      headers: {
+        Authorization: `Bearer ${env.linkedinApiToken}`,
+        Accept: "application/json"
+      }
+    });
+
+    if (!response.ok) return base;
+
+    const profile = await response.json();
+    return {
+      open_to_work: Boolean(profile?.openToWork),
+      linkedin_recent_update: Boolean(profile?.recentProfileUpdate),
+      verification_source: "linkedin_api"
+    };
+  } catch (error) {
+    logError("Attrition LinkedIn enrichment failed", { error: error.message });
+    return base;
+  }
+};
+
+const fetchJobPlatformSignals = async (email) => {
+  const base = {
+    job_platform_account_detected: false,
+    detected_platforms: [],
+    verification_source: "not_verified"
+  };
+
+  if (!email || !env.jobPlatformLookupApiUrl) return base;
+
+  try {
+    const headers = { "Content-Type": "application/json", Accept: "application/json" };
+    if (env.jobPlatformLookupApiToken) {
+      headers.Authorization = `Bearer ${env.jobPlatformLookupApiToken}`;
+    }
+
+    const response = await fetch(env.jobPlatformLookupApiUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email })
+    });
+
+    if (!response.ok) return base;
+
+    const payload = await response.json();
+    const detected = Array.isArray(payload?.foundPlatforms)
+      ? payload.foundPlatforms.map(normalizePlatformKey).filter(Boolean)
+      : [];
+
+    return {
+      job_platform_account_detected: detected.length > 0,
+      detected_platforms: [...new Set(detected)],
+      verification_source: "email_lookup_api"
+    };
+  } catch (error) {
+    logError("Attrition job platform lookup failed", { error: error.message });
+    return base;
+  }
+};
+
 const RISK_THRESHOLDS = {
   LOW_MAX: 40,
   MEDIUM_MAX: 70
@@ -14,6 +94,11 @@ const RECOMMENDATIONS = {
 };
 
 const detectSignalFlags = async (employee) => {
+  const [linkedInSignals, jobPlatformSignals] = await Promise.all([
+    fetchLinkedInSignals(employee.linkedin_url),
+    fetchJobPlatformSignals(employee.email)
+  ]);
+
   const lowEngagement = typeof employee.engagement_score === "number" && employee.engagement_score < 50;
   const lowPerformance = typeof employee.performance_score === "number" && employee.performance_score < 60;
   const salaryBelowMarket = typeof employee.salary === "number"
@@ -23,6 +108,12 @@ const detectSignalFlags = async (employee) => {
 
   return {
     linkedin_profile_found: Boolean(employee.linkedin_url),
+    linkedin_open_to_work: linkedInSignals.open_to_work,
+    linkedin_recent_update: linkedInSignals.linkedin_recent_update,
+    job_platform_account_detected: jobPlatformSignals.job_platform_account_detected,
+    detected_job_platforms: jobPlatformSignals.detected_platforms,
+    linkedin_verification_source: linkedInSignals.verification_source,
+    job_platform_verification_source: jobPlatformSignals.verification_source,
     low_engagement_score: lowEngagement,
     low_performance_score: lowPerformance,
     salary_below_market: salaryBelowMarket,
@@ -33,6 +124,9 @@ const detectSignalFlags = async (employee) => {
 const computeScore = (flags) => {
   let score = 0;
 
+  if (flags.linkedin_open_to_work) score += 30;
+  if (flags.linkedin_recent_update) score += 10;
+  if (flags.job_platform_account_detected) score += 20;
   if (flags.low_engagement_score) score += 30;
   if (flags.low_performance_score) score += 20;
   if (flags.salary_below_market) score += 25;
@@ -52,6 +146,15 @@ const buildDetectedSignals = (flags) => {
 
   if (flags.linkedin_profile_found) {
     signals.push("LinkedIn profile available");
+  }
+  if (flags.linkedin_open_to_work) {
+    signals.push("LinkedIn Open to Work is enabled");
+  }
+  if (flags.linkedin_recent_update) {
+    signals.push("LinkedIn profile updated recently");
+  }
+  if (flags.job_platform_account_detected) {
+    signals.push(`Account detected on job platforms: ${(flags.detected_job_platforms || []).join(", ")}`);
   }
   if (flags.low_engagement_score) {
     signals.push("Low engagement score (<50)");
