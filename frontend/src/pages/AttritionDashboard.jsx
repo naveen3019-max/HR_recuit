@@ -8,6 +8,59 @@ const riskBadge = {
   LOW: "bg-green-100 text-green-700"
 };
 
+const defaultActions = [
+  "Schedule a one-on-one discussion to understand employee concerns and intent.",
+  "Develop a retention plan including career growth or role clarity.",
+  "Address engagement and performance drivers through manager support.",
+  "Monitor attendance and engagement trends for the next 30 days."
+];
+
+const toTitleCase = (value = "") => value
+  .split(" ")
+  .filter(Boolean)
+  .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+  .join(" ");
+
+const parseRecommendedActions = (recommendation) => {
+  if (!recommendation) return defaultActions;
+  const clean = recommendation
+    .split(/\n|\.|;/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (clean.length >= 3) {
+    return clean.slice(0, 4);
+  }
+
+  return defaultActions;
+};
+
+const buildAttritionReport = (employee) => {
+  const name = employee.name || "N/A";
+  const role = employee.current_role || "N/A";
+  const experience = typeof employee.experience === "number" ? `${employee.experience} years` : "N/A";
+  const riskLevel = (employee.risk_level || "LOW").toUpperCase();
+  const riskScore = Number.isFinite(employee.risk_score) ? Math.round(employee.risk_score) : 0;
+  const signals = Array.isArray(employee.signals_detected) && employee.signals_detected.length
+    ? employee.signals_detected
+    : ["No strong attrition signals detected from currently available data"];
+  const analysis = employee.risk_reason || "No analysis available. Run Analyze Attrition.";
+  const actions = parseRecommendedActions(employee.recommendation);
+
+  return {
+    summary: {
+      name,
+      role,
+      experience,
+      riskLevel,
+      riskScore
+    },
+    signals,
+    analysis,
+    actions
+  };
+};
+
 const actionOptions = [
   { value: "salary_increment", label: "Salary Increment" },
   { value: "promotion_opportunity", label: "Promotion Opportunity" },
@@ -256,6 +309,10 @@ const AttritionDashboard = () => {
         <section className="space-y-4 lg:col-span-2">
           {employees.map((employee) => (
             <div key={employee.id} className="card p-4">
+              {(() => {
+                const report = buildAttritionReport(employee);
+                return (
+                  <>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <div className="flex items-center gap-2">
@@ -282,21 +339,47 @@ const AttritionDashboard = () => {
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-lg bg-gray-50 p-3">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">Detected Reasons</p>
-                  {employee.signals_detected?.length ? (
-                    <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-gray-700">
-                      {employee.signals_detected.map((signal) => <li key={signal}>{signal}</li>)}
+              <div className="mt-4 rounded-lg border border-gray-100 bg-gray-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Attrition Report</p>
+
+                <div className="mt-3 space-y-4 text-sm text-gray-800">
+                  <section>
+                    <p className="font-semibold text-gray-900">EMPLOYEE SUMMARY</p>
+                    <p className="mt-1">Name: {report.summary.name}</p>
+                    <p>Role: {report.summary.role}</p>
+                    <p>Experience in Company: {report.summary.experience}</p>
+                    <p>Attrition Risk Level: {toTitleCase(report.summary.riskLevel)}</p>
+                    <p>Attrition Risk Score: {report.summary.riskScore}%</p>
+                  </section>
+
+                  <section>
+                    <p className="font-semibold text-gray-900">KEY RISK SIGNALS</p>
+                    <p className="mt-1 text-gray-600">List the main factors contributing to attrition risk:</p>
+                    <ul className="mt-1 space-y-1">
+                      {report.signals.map((signal) => (
+                        <li key={signal}>• {signal}</li>
+                      ))}
                     </ul>
-                  ) : <p className="mt-2 text-sm text-gray-500">No reasons detected yet.</p>}
-                </div>
-                <div className="rounded-lg bg-gray-50 p-3">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">AI Analysis & Recommendation</p>
-                  <p className="mt-2 text-sm text-gray-700">{employee.risk_reason || "Run analysis to generate explanation."}</p>
-                  <p className="mt-2 text-sm font-medium text-gray-800">{employee.recommendation || "No recommendation available."}</p>
+                  </section>
+
+                  <section>
+                    <p className="font-semibold text-gray-900">AI ATTRITION ANALYSIS</p>
+                    <p className="mt-1 text-gray-700">{report.analysis}</p>
+                  </section>
+
+                  <section>
+                    <p className="font-semibold text-gray-900">RECOMMENDED HR ACTIONS</p>
+                    <ol className="mt-1 space-y-1">
+                      {report.actions.map((action, index) => (
+                        <li key={action}>{index + 1}. {action}</li>
+                      ))}
+                    </ol>
+                  </section>
                 </div>
               </div>
+                  </>
+                );
+              })()}
             </div>
           ))}
         </section>
