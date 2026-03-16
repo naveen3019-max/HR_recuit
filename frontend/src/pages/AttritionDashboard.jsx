@@ -1,5 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, BarChart3, Briefcase, Loader2, Plus, Save, ShieldAlert, Users } from "lucide-react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  BarChart3,
+  Briefcase,
+  CalendarDays,
+  Gauge,
+  Loader2,
+  MessageCircle,
+  Plus,
+  Save,
+  ShieldAlert,
+  Sparkles,
+  Target,
+  TrendingUp,
+  UserCheck,
+  Users
+} from "lucide-react";
 import api from "../services/api";
 
 const riskBadge = {
@@ -8,11 +25,36 @@ const riskBadge = {
   LOW: "bg-green-100 text-green-700"
 };
 
+const riskTheme = {
+  HIGH: {
+    score: "text-red-600",
+    ring: "#dc2626",
+    chip: "bg-red-50 text-red-700 border-red-100"
+  },
+  MEDIUM: {
+    score: "text-amber-600",
+    ring: "#d97706",
+    chip: "bg-amber-50 text-amber-700 border-amber-100"
+  },
+  LOW: {
+    score: "text-emerald-600",
+    ring: "#059669",
+    chip: "bg-emerald-50 text-emerald-700 border-emerald-100"
+  }
+};
+
 const defaultActions = [
-  "Schedule a one-on-one discussion to understand employee concerns and intent.",
-  "Develop a retention plan including career growth or role clarity.",
-  "Address engagement and performance drivers through manager support.",
-  "Monitor attendance and engagement trends for the next 30 days."
+  "Understand employee concerns and career expectations.",
+  "Define career path and development goals.",
+  "Provide mentoring and support from manager.",
+  "Track progress over the next 30 days."
+];
+
+const actionBlueprint = [
+  { title: "Conduct one-on-one discussion", icon: MessageCircle },
+  { title: "Create retention plan", icon: TrendingUp },
+  { title: "Address performance concerns", icon: Target },
+  { title: "Monitor engagement", icon: UserCheck }
 ];
 
 const toTitleCase = (value = "") => value
@@ -128,10 +170,16 @@ const AttritionDashboard = () => {
     loadData();
   }, []);
 
-  const selectedEmployee = useMemo(
-    () => employees.find((employee) => employee.id === selectedEmployeeId),
-    [employees, selectedEmployeeId]
-  );
+  useEffect(() => {
+    if (employees.length > 0 && !selectedEmployeeId) {
+      setSelectedEmployeeId(employees[0].id);
+    }
+  }, [employees, selectedEmployeeId]);
+
+  const selectedEmployee = useMemo(() => {
+    if (employees.length === 0) return null;
+    return employees.find((employee) => employee.id === selectedEmployeeId) || employees[0];
+  }, [employees, selectedEmployeeId]);
 
   const loadActions = async (employeeId) => {
     setSelectedEmployeeId(employeeId);
@@ -225,6 +273,9 @@ const AttritionDashboard = () => {
 
   const highCount = risks.filter((risk) => risk.risk_level === "HIGH").length;
   const mediumCount = risks.filter((risk) => risk.risk_level === "MEDIUM").length;
+  const activeEmployee = selectedEmployee;
+  const activeReport = activeEmployee ? buildAttritionReport(activeEmployee) : null;
+  const activeTheme = activeReport ? (riskTheme[activeReport.summary.riskLevel] || riskTheme.LOW) : riskTheme.LOW;
 
   if (loading) {
     return (
@@ -305,125 +356,185 @@ const AttritionDashboard = () => {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <section className="space-y-4 lg:col-span-2">
-          {employees.map((employee) => (
-            <div key={employee.id} className="card p-4">
-              {(() => {
-                const report = buildAttritionReport(employee);
-                return (
-                  <>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-semibold text-gray-900">{employee.name}</h3>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${riskBadge[employee.risk_level] || riskBadge.LOW}`}>
-                      {employee.risk_level || "LOW"}
+      {employees.length === 0 ? (
+        <div className="card rounded-2xl p-10 text-center text-gray-500">
+          <Users className="mx-auto mb-3 h-10 w-10 text-gray-300" />
+          Add your first employee to start attrition analytics.
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {employees.map((employee) => {
+              const isActive = employee.id === activeEmployee?.id;
+              return (
+                <button
+                  key={employee.id}
+                  type="button"
+                  onClick={() => setSelectedEmployeeId(employee.id)}
+                  className={`rounded-2xl border p-4 text-left shadow-sm transition-all ${isActive ? "border-primary-300 bg-primary-50" : "border-gray-100 bg-white hover:border-gray-200"}`}
+                >
+                  <p className="text-sm font-semibold text-gray-900">{employee.name}</p>
+                  <p className="mt-1 text-xs text-gray-500">{employee.current_role || "No role"}</p>
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${riskBadge[employee.risk_level] || riskBadge.LOW}`}>
+                      {(employee.risk_level || "LOW").toUpperCase()}
                     </span>
+                    <span className="text-xs font-semibold text-gray-600">{Math.round(employee.risk_score || 0)}%</span>
                   </div>
-                  <p className="mt-1 text-sm text-gray-600">{employee.department || "No department"} - {employee.current_role || "No role"}</p>
-                  <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500">
-                    <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {employee.employee_id || `EMP-${employee.id}`}</span>
-                    <span className="inline-flex items-center gap-1"><Briefcase className="h-3.5 w-3.5" /> Exp: {employee.experience ?? 0}y</span>
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2 sm:items-end">
-                  <p className="text-sm text-gray-500">Risk Score</p>
-                  <p className="text-2xl font-semibold text-gray-900">{employee.risk_score ?? 0}%</p>
-                  <button className="btn-primary" onClick={() => runAttritionAnalysis(employee.id)} disabled={analyzingId === employee.id}>
-                    {analyzingId === employee.id ? "Analyzing..." : "Analyze Attrition"}
-                  </button>
-                  <button className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700" onClick={() => loadActions(employee.id)}>
-                    View Actions
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-lg border border-gray-100 bg-gray-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Attrition Report</p>
-
-                <div className="mt-3 space-y-4 text-sm text-gray-800">
-                  <section>
-                    <p className="font-semibold text-gray-900">EMPLOYEE SUMMARY</p>
-                    <p className="mt-1">Name: {report.summary.name}</p>
-                    <p>Role: {report.summary.role}</p>
-                    <p>Experience in Company: {report.summary.experience}</p>
-                    <p>Attrition Risk Level: {toTitleCase(report.summary.riskLevel)}</p>
-                    <p>Attrition Risk Score: {report.summary.riskScore}%</p>
-                  </section>
-
-                  <section>
-                    <p className="font-semibold text-gray-900">KEY RISK SIGNALS</p>
-                    <p className="mt-1 text-gray-600">List the main factors contributing to attrition risk:</p>
-                    <ul className="mt-1 space-y-1">
-                      {report.signals.map((signal) => (
-                        <li key={signal}>• {signal}</li>
-                      ))}
-                    </ul>
-                  </section>
-
-                  <section>
-                    <p className="font-semibold text-gray-900">AI ATTRITION ANALYSIS</p>
-                    <p className="mt-1 text-gray-700">{report.analysis}</p>
-                  </section>
-
-                  <section>
-                    <p className="font-semibold text-gray-900">RECOMMENDED HR ACTIONS</p>
-                    <ol className="mt-1 space-y-1">
-                      {report.actions.map((action, index) => (
-                        <li key={action}>{index + 1}. {action}</li>
-                      ))}
-                    </ol>
-                  </section>
-                </div>
-              </div>
-                  </>
-                );
-              })()}
-            </div>
-          ))}
-        </section>
-
-        <aside className="card p-4">
-          <h3 className="flex items-center gap-2 text-base font-semibold text-gray-900">
-            <ShieldAlert className="h-4 w-4 text-primary-600" /> Retention Action Log
-          </h3>
-          {!selectedEmployee ? (
-            <p className="mt-3 text-sm text-gray-500">Select an employee and click "View Actions".</p>
-          ) : (
-            <>
-              <p className="mt-2 text-sm text-gray-600">Employee: <span className="font-medium text-gray-900">{selectedEmployee.name}</span></p>
-              <form className="mt-3 space-y-3" onSubmit={submitAction}>
-                <select className="input-field" value={actionType} onChange={(event) => setActionType(event.target.value)}>
-                  {actionOptions.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-                <textarea className="input-field min-h-24" placeholder="Notes" value={actionNotes} onChange={(event) => setActionNotes(event.target.value)} />
-                <button className="btn-primary w-full" disabled={savingAction}>
-                  {savingAction ? "Saving..." : "Log Action"}
                 </button>
-              </form>
+              );
+            })}
+          </div>
 
-              <div className="mt-4 space-y-2">
-                {loadingActions ? (
-                  <div className="flex items-center gap-2 text-sm text-gray-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading actions...</div>
-                ) : actions.length === 0 ? (
-                  <p className="text-sm text-gray-500">No actions logged yet.</p>
-                ) : (
-                  actions.map((action) => (
-                    <div key={action.action_id} className="rounded-lg border border-gray-100 p-3">
-                      <p className="text-sm font-medium text-gray-900">{action.action_type.replace(/_/g, " ")}</p>
-                      <p className="text-xs text-gray-500">{new Date(action.date).toLocaleString()}</p>
-                      {action.notes && <p className="mt-1 text-sm text-gray-700">{action.notes}</p>}
+          {activeEmployee && activeReport && (
+            <>
+              <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Employee Attrition Intelligence</p>
+                    <h2 className="mt-2 text-2xl font-semibold text-gray-900">{activeReport.summary.name}</h2>
+                    <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-gray-50 px-3 py-1.5">
+                        <Briefcase className="h-4 w-4 text-gray-500" /> {activeReport.summary.role}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-gray-50 px-3 py-1.5">
+                        <CalendarDays className="h-4 w-4 text-gray-500" /> {activeReport.summary.experience}
+                      </span>
+                      <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${riskBadge[activeReport.summary.riskLevel] || riskBadge.LOW}`}>
+                        {toTitleCase(activeReport.summary.riskLevel)} Risk
+                      </span>
                     </div>
-                  ))
-                )}
+                  </div>
+
+                  <div className="flex items-center gap-6">
+                    <div className="relative h-28 w-28 rounded-full p-2" style={{ background: `conic-gradient(${activeTheme.ring} ${Math.max(0, Math.min(100, activeReport.summary.riskScore)) * 3.6}deg, #e5e7eb 0deg)` }}>
+                      <div className="flex h-full w-full items-center justify-center rounded-full bg-white">
+                        <div className="text-center">
+                          <p className={`text-2xl font-bold ${activeTheme.score}`}>{activeReport.summary.riskScore}%</p>
+                          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Risk Score</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <button
+                        className="btn-primary"
+                        onClick={() => runAttritionAnalysis(activeEmployee.id)}
+                        disabled={analyzingId === activeEmployee.id}
+                      >
+                        {analyzingId === activeEmployee.id ? "Analyzing..." : "Analyze Attrition"}
+                      </button>
+                      <button
+                        className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        onClick={() => loadActions(activeEmployee.id)}
+                      >
+                        View Actions
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-6 lg:grid-cols-2">
+                <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Risk Signals</h3>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {activeReport.signals.map((signal) => (
+                      <span key={signal} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${activeTheme.chip}`}>
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        {signal}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+                  <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
+                    <Sparkles className="h-4 w-4 text-primary-600" /> AI Attrition Insight
+                  </h3>
+                  <p className="mt-4 text-sm leading-6 text-gray-700">{activeReport.analysis}</p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Recommended HR Actions</h3>
+                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  {actionBlueprint.map((item, idx) => {
+                    const Icon = item.icon;
+                    return (
+                      <div key={item.title} className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                        <div className="mb-2 inline-flex rounded-lg bg-white p-2 shadow-sm ring-1 ring-gray-100">
+                          <Icon className="h-4 w-4 text-primary-600" />
+                        </div>
+                        <p className="text-sm font-semibold text-gray-900">{item.title}</p>
+                        <p className="mt-1 text-xs leading-5 text-gray-600">{activeReport.actions[idx] || defaultActions[idx]}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+                <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
+                  <Gauge className="h-4 w-4 text-primary-600" /> Optional Analytics
+                </h3>
+                <div className="mt-4 grid gap-4 md:grid-cols-3">
+                  {[
+                    { label: "Engagement Score", value: Number(activeEmployee.engagement_score || 0) },
+                    { label: "Performance Score", value: Number(activeEmployee.performance_score || 0) },
+                    { label: "Attendance Score", value: Number(activeEmployee.attendance_score || 0) }
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-xl border border-gray-100 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{item.label}</p>
+                      <p className="mt-1 text-sm font-semibold text-gray-900">{item.value} / 100</p>
+                      <div className="mt-2 h-2 rounded-full bg-gray-100">
+                        <div
+                          className={`h-2 rounded-full ${item.value < 50 ? "bg-red-500" : item.value < 70 ? "bg-amber-500" : "bg-emerald-500"}`}
+                          style={{ width: `${Math.max(0, Math.min(100, item.value))}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+                <h3 className="flex items-center gap-2 text-base font-semibold text-gray-900">
+                  <ShieldAlert className="h-4 w-4 text-primary-600" /> Retention Action Log
+                </h3>
+                <p className="mt-2 text-sm text-gray-600">Employee: <span className="font-medium text-gray-900">{activeEmployee.name}</span></p>
+                <form className="mt-3 grid gap-3 md:grid-cols-[1fr_2fr_auto]" onSubmit={submitAction}>
+                  <select className="input-field" value={actionType} onChange={(event) => setActionType(event.target.value)}>
+                    {actionOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                  <textarea className="input-field min-h-24" placeholder="Notes" value={actionNotes} onChange={(event) => setActionNotes(event.target.value)} />
+                  <button className="btn-primary h-fit" disabled={savingAction}>
+                    {savingAction ? "Saving..." : "Log Action"}
+                  </button>
+                </form>
+
+                <div className="mt-4 grid gap-2 md:grid-cols-2">
+                  {loadingActions ? (
+                    <div className="flex items-center gap-2 text-sm text-gray-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading actions...</div>
+                  ) : actions.length === 0 ? (
+                    <p className="text-sm text-gray-500">No actions logged yet.</p>
+                  ) : (
+                    actions.map((action) => (
+                      <div key={action.action_id} className="rounded-lg border border-gray-100 p-3">
+                        <p className="text-sm font-medium text-gray-900">{action.action_type.replace(/_/g, " ")}</p>
+                        <p className="text-xs text-gray-500">{new Date(action.date).toLocaleString()}</p>
+                        {action.notes && <p className="mt-1 text-sm text-gray-700">{action.notes}</p>}
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </>
           )}
-        </aside>
-      </div>
+        </div>
+      )}
     </div>
   );
 };
