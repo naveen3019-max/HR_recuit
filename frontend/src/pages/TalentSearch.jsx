@@ -31,6 +31,8 @@ const TalentSearch = () => {
   const [skillInput, setSkillInput] = useState("");
 
   const [formData, setFormData] = useState({
+    recruiter_access_token: "",
+    linkedin_profile_ids: [],
     role: "",
     experience_required: "",
     location: "",
@@ -79,7 +81,8 @@ const TalentSearch = () => {
     try {
       const payload = {
         ...formData,
-        skills: formData.skills.map((skill) => skill.trim()).filter(Boolean)
+        skills: formData.skills.map((skill) => skill.trim()).filter(Boolean),
+        linkedin_profile_ids: formData.linkedin_profile_ids.map((id) => id.trim()).filter(Boolean)
       };
 
       const { data } = await api.post("/talent/search", payload);
@@ -142,13 +145,14 @@ const TalentSearch = () => {
               Talent Search
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Create a job requirement and get AI-ranked candidates from imported profiles and internal database.
+              Create a job requirement and get AI-ranked candidates fetched directly from LinkedIn Developer API.
             </p>
           </div>
           {searchMeta && (
             <div className="rounded-xl bg-primary-50 px-4 py-3 text-right text-primary-800">
               <p className="text-sm font-semibold">Top {searchMeta.total_candidates} candidates</p>
               <p className="text-xs">Search ID: {searchMeta.search_id}</p>
+              <p className="text-xs">Source: LinkedIn API</p>
             </div>
           )}
         </div>
@@ -164,6 +168,39 @@ const TalentSearch = () => {
         )}
 
         <form onSubmit={handleSearch} className="grid gap-4 lg:grid-cols-2">
+          <div className="lg:col-span-2">
+            <label className="mb-1 block text-sm font-medium text-gray-700">LinkedIn Recruiter Access Token</label>
+            <input
+              type="password"
+              name="recruiter_access_token"
+              value={formData.recruiter_access_token}
+              onChange={handleChange}
+              placeholder="Paste LinkedIn developer access token"
+              className="input-field"
+              required
+            />
+          </div>
+
+          <div className="lg:col-span-2">
+            <label className="mb-1 block text-sm font-medium text-gray-700">LinkedIn Profile IDs</label>
+            <textarea
+              value={formData.linkedin_profile_ids.join("\n")}
+              onChange={(event) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  linkedin_profile_ids: event.target.value
+                    .split(/[\n,]/)
+                    .map((id) => id.trim())
+                    .filter(Boolean)
+                }))
+              }
+              rows={4}
+              placeholder="Enter profile IDs, one per line"
+              className="input-field"
+              required
+            />
+          </div>
+
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">Role</label>
             <input

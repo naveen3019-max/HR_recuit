@@ -2,6 +2,8 @@ import { z } from "zod";
 
 export const talentSearchSchema = z.object({
   body: z.object({
+    recruiter_access_token: z.string().min(10),
+    linkedin_profile_ids: z.array(z.string().min(1)).min(1),
     role: z.string().min(2).max(200),
     experience_required: z.string().min(1).max(120),
     location: z.string().min(1).max(120),
