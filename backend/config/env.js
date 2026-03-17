@@ -9,6 +9,7 @@ const env = {
   jwtSecret: process.env.JWT_SECRET || "dev-secret",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "1d",
   frontendUrl: process.env.FRONTEND_URL || "http://localhost:5173",
+  extensionOrigins: process.env.EXTENSION_ORIGINS || "",
   linkedinClientId: process.env.LINKEDIN_CLIENT_ID,
   linkedinClientSecret: process.env.LINKEDIN_CLIENT_SECRET,
   linkedinRedirectUri: process.env.LINKEDIN_REDIRECT_URI,

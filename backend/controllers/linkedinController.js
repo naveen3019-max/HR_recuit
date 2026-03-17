@@ -8,6 +8,31 @@ import {
 import env from "../config/env.js";
 import { ApiError } from "../utils/apiError.js";
 
+const normalizeLinkedinAnalyzePayload = (payload) => {
+  const candidate = payload.candidate || payload;
+  const analysis = payload.analysis || payload;
+
+  const skills = Array.isArray(candidate.skills) ? candidate.skills : [];
+  const experience = Number(candidate.experience || 0);
+
+  // Fallback heuristic when extension sends raw candidate only.
+  const fallbackScore = Math.max(0, Math.min(100, Math.round(Math.min(skills.length * 12, 70) + Math.min(experience * 6, 30))));
+  const fallbackRecommendation = fallbackScore >= 75 ? "Strong Fit" : fallbackScore >= 50 ? "Moderate" : "Low";
+
+  return {
+    name: candidate.name,
+    headline: candidate.headline || "",
+    location: candidate.location || "",
+    skills,
+    experience,
+    score: Number.isFinite(Number(analysis.score)) ? Number(analysis.score) : fallbackScore,
+    recommendation: analysis.recommendation || fallbackRecommendation,
+    reason:
+      analysis.reason ||
+      `Auto-generated from visible profile data: ${skills.length} visible skills and ${experience} years experience.`
+  };
+};
+
 export const getLinkedinAuthUrl = async (req, res, next) => {
   try {
     const authUrl = getLinkedinOAuthUrl();
@@ -42,7 +67,8 @@ export const analyzeLinkedinProfileHandler = async (req, res, next) => {
       throw new ApiError(401, "Unauthorized extension request");
     }
 
-    const saved = addRecentLinkedinAnalysis(req.validated.body);
+    const normalized = normalizeLinkedinAnalyzePayload(req.validated.body);
+    const saved = addRecentLinkedinAnalysis(normalized);
     return res.status(201).json({ saved: true, candidate: saved });
   } catch (error) {
     return next(error);

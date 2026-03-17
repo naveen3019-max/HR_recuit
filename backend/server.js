@@ -24,13 +24,18 @@ const allowedOrigins = (env.frontendUrl || "http://localhost:5173")
   .split(",")
   .map((u) => u.trim())
   .filter(Boolean);
+const extensionOrigins = (env.extensionOrigins || "")
+  .split(",")
+  .map((u) => u.trim())
+  .filter(Boolean);
+const corsAllowlist = [...allowedOrigins, ...extensionOrigins];
 
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (mobile apps, curl, Postman)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin) || allowedOrigins.includes("*")) {
+      if (corsAllowlist.includes(origin) || corsAllowlist.includes("*")) {
         return callback(null, true);
       }
       callback(new Error("Not allowed by CORS"));
