@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   AlertCircle,
@@ -25,6 +25,10 @@ const scorePill = (score) => {
 const TalentSearch = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [linkedinError, setLinkedinError] = useState(null);
+  const [linkedinLoading, setLinkedinLoading] = useState(true);
+  const [linkedinSaveLoading, setLinkedinSaveLoading] = useState(null);
+  const [linkedinCandidates, setLinkedinCandidates] = useState([]);
   const [results, setResults] = useState([]);
   const [searchMeta, setSearchMeta] = useState(null);
   const [savingMatchId, setSavingMatchId] = useState(null);
@@ -71,6 +75,23 @@ const TalentSearch = () => {
     }
   };
 
+  const loadLinkedinCandidates = async () => {
+    setLinkedinLoading(true);
+    setLinkedinError(null);
+    try {
+      const { data } = await api.get("/linkedin/recent-analysis");
+      setLinkedinCandidates(data?.candidates || []);
+    } catch (err) {
+      setLinkedinError(err.response?.data?.message || "Failed to load LinkedIn analysis");
+    } finally {
+      setLinkedinLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadLinkedinCandidates();
+  }, []);
+
   const handleSearch = async (event) => {
     event.preventDefault();
     setError(null);
@@ -111,6 +132,25 @@ const TalentSearch = () => {
     }
   };
 
+  const saveLinkedinCandidate = async (candidate, index) => {
+    setLinkedinSaveLoading(index);
+    setLinkedinError(null);
+    try {
+      await api.post("/candidates/add", {
+        name: candidate.name,
+        headline: candidate.headline,
+        location: candidate.location,
+        skills: candidate.skills || [],
+        experience: Number(candidate.experience || 0),
+        score: Number(candidate.score || 0)
+      });
+    } catch (err) {
+      setLinkedinError(err.response?.data?.message || "Failed to save candidate");
+    } finally {
+      setLinkedinSaveLoading(null);
+    }
+  };
+
   const filteredResults = useMemo(() => {
     return results.filter((candidate) => {
       if (candidate.match_score < Number(filters.minScore || 0)) return false;
@@ -134,6 +174,71 @@ const TalentSearch = () => {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
+      <section className="card p-6">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">LinkedIn Candidate Analysis</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Latest candidates analyzed through extension integration.
+            </p>
+          </div>
+          <button type="button" onClick={loadLinkedinCandidates} className="btn-secondary px-3 py-2 text-sm">
+            Refresh
+          </button>
+        </div>
+
+        {linkedinError && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {linkedinError}
+          </div>
+        )}
+
+        {linkedinLoading ? (
+          <div className="flex min-h-40 items-center justify-center text-gray-500">
+            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+            Loading LinkedIn candidates...
+          </div>
+        ) : linkedinCandidates.length === 0 ? (
+          <div className="flex min-h-40 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 text-sm text-gray-500">
+            No LinkedIn candidates yet
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {linkedinCandidates.map((candidate, index) => (
+              <article key={`${candidate.name}-${index}`} className="rounded-xl border border-gray-100 p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900">{candidate.name}</h3>
+                    <p className="mt-0.5 text-sm text-gray-500">{candidate.headline || "Headline not available"}</p>
+                  </div>
+                  <div className={`rounded-xl px-3 py-2 text-center ${scorePill(Number(candidate.score || 0))}`}>
+                    <p className="text-xl font-extrabold leading-none">{Number(candidate.score || 0)}%</p>
+                    <p className="mt-1 text-[11px] font-semibold">Match</p>
+                  </div>
+                </div>
+
+                <p className="mt-3 text-sm text-gray-600">Location: {candidate.location || "N/A"}</p>
+
+                <div className="mt-3 rounded-lg bg-gray-50 p-3 text-sm text-gray-700">
+                  <p className="font-semibold text-gray-900">{candidate.recommendation}</p>
+                  <p className="mt-1">{candidate.reason}</p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => saveLinkedinCandidate(candidate, index)}
+                  disabled={linkedinSaveLoading === index}
+                  className="mt-4 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700"
+                >
+                  {linkedinSaveLoading === index ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Save Candidate
+                </button>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
       <section className="card p-6">
         <div className="mb-4 flex items-center justify-between gap-4">
           <div>

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  addLinkedinCandidateHandler,
   createCandidateHandler,
   deleteCandidateHandler,
   getCandidateByIdHandler,
@@ -10,6 +11,7 @@ import {
 import { authorize, protect } from "../middleware/authMiddleware.js";
 import { validate } from "../middleware/validateMiddleware.js";
 import {
+  addLinkedinCandidateSchema,
   candidateParamsSchema,
   createCandidateSchema,
   listCandidatesSchema,
@@ -22,6 +24,7 @@ const router = Router();
 router.use(protect);
 
 router.post("/", authorize("admin", "recruiter"), validate(createCandidateSchema), createCandidateHandler);
+router.post("/add", authorize("admin", "recruiter"), validate(addLinkedinCandidateSchema), addLinkedinCandidateHandler);
 router.get("/", authorize("admin", "recruiter"), validate(listCandidatesSchema), listCandidatesHandler);
 router.get("/:id", authorize("admin", "recruiter"), validate(candidateParamsSchema), getCandidateByIdHandler);
 router.put("/:id", authorize("admin", "recruiter"), validate(candidateParamsSchema), validate(updateCandidateSchema), updateCandidateHandler);

@@ -3,6 +3,9 @@ import env from "../config/env.js";
 import prisma from "../config/db.js";
 import { ApiError } from "../utils/apiError.js";
 
+const recentLinkedinAnalysis = [];
+const MAX_RECENT_ANALYSIS = 50;
+
 const mapLinkedinProfileToCandidate = (profile, options = {}) => {
   const { openToWork = true } = options;
   return {
@@ -127,4 +130,21 @@ export const syncLinkedinCandidate = async ({ recruiterAccessToken, candidateId,
     linkedin_url: candidate.linkedinUrl,
     recruitment_stage: candidate.stage.name
   };
+};
+
+export const addRecentLinkedinAnalysis = (entry) => {
+  recentLinkedinAnalysis.unshift({
+    ...entry,
+    analyzed_at: new Date().toISOString()
+  });
+
+  if (recentLinkedinAnalysis.length > MAX_RECENT_ANALYSIS) {
+    recentLinkedinAnalysis.length = MAX_RECENT_ANALYSIS;
+  }
+
+  return recentLinkedinAnalysis[0];
+};
+
+export const getRecentLinkedinAnalysis = () => {
+  return [...recentLinkedinAnalysis];
 };

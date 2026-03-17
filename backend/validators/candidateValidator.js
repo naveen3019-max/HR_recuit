@@ -67,3 +67,14 @@ export const listCandidatesSchema = z.object({
     search: z.string().optional()
   })
 });
+
+export const addLinkedinCandidateSchema = z.object({
+  body: z.object({
+    name: z.string().min(2),
+    headline: z.string().max(240).optional().or(z.literal("")),
+    location: z.string().max(120).optional().or(z.literal("")),
+    skills: z.array(z.string()).default([]),
+    experience: z.coerce.number().min(0).max(60).default(0),
+    score: z.coerce.number().min(0).max(100).optional().default(0)
+  })
+});

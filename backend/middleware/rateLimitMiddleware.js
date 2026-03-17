@@ -40,3 +40,12 @@ export const talentSearchLimiter = rateLimit({
     message: "Talent search limit exceeded. Please retry in 15 minutes."
   }
 });
+
+export const linkedinAnalysisLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 120,
+  message: {
+    success: false,
+    message: "LinkedIn analysis limit exceeded. Please retry in 15 minutes."
+  }
+});

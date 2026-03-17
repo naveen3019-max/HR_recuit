@@ -64,3 +64,32 @@ export const updateCandidateStageHandler = async (req, res, next) => {
     return next(error);
   }
 };
+
+export const addLinkedinCandidateHandler = async (req, res, next) => {
+  try {
+    const payload = req.validated.body;
+    const candidate = await createCandidate(
+      {
+        name: payload.name,
+        email: "",
+        phone: "",
+        linkedin_url: "",
+        github_url: "",
+        current_company: "",
+        current_role: payload.headline || "",
+        experience_years: payload.experience,
+        skills: payload.skills || [],
+        education: "",
+        location: payload.location || "",
+        open_to_work: true,
+        notes: payload.score ? `Imported from LinkedIn analysis with score ${payload.score}` : "Imported from LinkedIn analysis",
+        recruitment_stage: "Applied"
+      },
+      req.user.id
+    );
+
+    return res.status(201).json(candidate);
+  } catch (error) {
+    return next(error);
+  }
+};
