@@ -302,9 +302,20 @@ const persistLinkedinProfiles = async (profiles, recruiterId) => {
 };
 
 export const runTalentSearch = async (jobInput, recruiterId) => {
+  const normalizedJobInput = {
+    role: (jobInput.role || "General Opportunity").trim(),
+    experience_required: (jobInput.experience_required || "").trim(),
+    location: (jobInput.location || "").trim(),
+    skills: Array.isArray(jobInput.skills) ? jobInput.skills : [],
+    industry: (jobInput.industry || "").trim(),
+    additional_requirements: (jobInput.additional_requirements || "").trim(),
+    recruiter_access_token: jobInput.recruiter_access_token,
+    linkedin_profile_ids: jobInput.linkedin_profile_ids || []
+  };
+
   const profiles = await fetchLinkedinProfiles(
-    jobInput.recruiter_access_token,
-    jobInput.linkedin_profile_ids || []
+    normalizedJobInput.recruiter_access_token,
+    normalizedJobInput.linkedin_profile_ids || []
   );
   const candidates = await persistLinkedinProfiles(profiles, recruiterId);
   const source = "linkedin";
@@ -312,19 +323,19 @@ export const runTalentSearch = async (jobInput, recruiterId) => {
   const searchRecord = await prisma.talentSearch.create({
     data: {
       recruiterId,
-      role: jobInput.role,
-      experienceRequired: jobInput.experience_required || null,
-      location: jobInput.location || null,
-      skills: jobInput.skills || [],
-      industry: jobInput.industry || null,
-      additionalRequirements: jobInput.additional_requirements || null
+      role: normalizedJobInput.role,
+      experienceRequired: normalizedJobInput.experience_required || null,
+      location: normalizedJobInput.location || null,
+      skills: normalizedJobInput.skills || [],
+      industry: normalizedJobInput.industry || null,
+      additionalRequirements: normalizedJobInput.additional_requirements || null
     }
   });
 
   if (candidates.length === 0) {
     return {
       search_id: searchRecord.id,
-      role: jobInput.role,
+      role: normalizedJobInput.role,
       source,
       total_candidates: 0,
       searched_at: searchRecord.createdAt,
@@ -335,20 +346,20 @@ export const runTalentSearch = async (jobInput, recruiterId) => {
   const preRankedCandidates = candidates
     .map((candidate) => ({
       ...candidate,
-      preRankScore: computePreRankScore(jobInput, candidate)
+      preRankScore: computePreRankScore(normalizedJobInput, candidate)
     }))
     .sort((a, b) => b.preRankScore - a.preRankScore)
     .slice(0, 30);
 
   const evaluated = await Promise.all(
     preRankedCandidates.map(async (candidate) => {
-      const aiResult = await callGeminiForTalentMatch(jobInput, candidate);
+      const aiResult = await callGeminiForTalentMatch(normalizedJobInput, candidate);
       return {
         candidateId: candidate.id,
         matchScore: aiResult.match_score,
-        summary: aiResult.candidate_summary || `${candidate.name} is a potential match for ${jobInput.role}.`,
+        summary: aiResult.candidate_summary || `${candidate.name} is a potential match for ${normalizedJobInput.role}.`,
         strengths: aiResult.strengths || [],
-        recommendedRole: aiResult.recommended_role || jobInput.role,
+        recommendedRole: aiResult.recommended_role || normalizedJobInput.role,
         roleFit: aiResult.role_fit || null
       };
     })
@@ -399,7 +410,7 @@ export const runTalentSearch = async (jobInput, recruiterId) => {
 
   return {
     search_id: searchRecord.id,
-    role: jobInput.role,
+    role: normalizedJobInput.role,
     source,
     total_candidates: ranked.length,
     searched_at: searchRecord.createdAt,
