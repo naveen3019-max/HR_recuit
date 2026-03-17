@@ -22,6 +22,43 @@ const scorePill = (score) => {
   return "bg-slate-100 text-slate-700";
 };
 
+const normalizeSkillList = (skills = []) =>
+  skills.map((skill) => String(skill || "").toLowerCase().trim()).filter(Boolean);
+
+const parseExperienceValue = (value) => {
+  const nums = String(value || "")
+    .match(/\d+/g)
+    ?.map(Number)
+    .filter((n) => !Number.isNaN(n));
+  if (!nums?.length) return 0;
+  return Math.max(...nums);
+};
+
+const computeLinkedinMatchScore = (jobInput, candidate) => {
+  const requiredSkills = normalizeSkillList(jobInput.skills || []);
+  const candidateSkills = new Set(normalizeSkillList(candidate.skills || []));
+  const skillMatched = requiredSkills.filter((skill) => candidateSkills.has(skill)).length;
+  const skillScore = requiredSkills.length ? Math.round((skillMatched / requiredSkills.length) * 60) : 0;
+
+  const expectedExp = parseExperienceValue(jobInput.experience_required);
+  const candidateExp = Number(candidate.experience || 0);
+  const expScore = expectedExp > 0 ? Math.min(20, Math.round((candidateExp / expectedExp) * 20)) : 10;
+
+  const jobLocation = String(jobInput.location || "").toLowerCase().trim();
+  const candidateLocation = String(candidate.location || "").toLowerCase().trim();
+  const locationScore = jobLocation && candidateLocation && candidateLocation.includes(jobLocation) ? 20 : 0;
+
+  const score = Math.max(0, Math.min(100, skillScore + expScore + locationScore));
+  const recommendation = score >= 75 ? "Strong Fit" : score >= 50 ? "Moderate" : "Low";
+  const reason = `Skill match ${skillMatched}/${requiredSkills.length || 0}, experience ${candidateExp} yrs, location ${locationScore > 0 ? "matched" : "not matched"}.`;
+
+  return {
+    score,
+    recommendation,
+    reason
+  };
+};
+
 const TalentSearch = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -29,6 +66,7 @@ const TalentSearch = () => {
   const [linkedinLoading, setLinkedinLoading] = useState(true);
   const [linkedinSaveLoading, setLinkedinSaveLoading] = useState(null);
   const [linkedinCandidates, setLinkedinCandidates] = useState([]);
+  const [linkedinMatches, setLinkedinMatches] = useState([]);
   const [results, setResults] = useState([]);
   const [searchMeta, setSearchMeta] = useState(null);
   const [savingMatchId, setSavingMatchId] = useState(null);
@@ -80,7 +118,9 @@ const TalentSearch = () => {
     setLinkedinError(null);
     try {
       const { data } = await api.get("/linkedin/recent-analysis");
-      setLinkedinCandidates(data?.candidates || []);
+      const candidates = data?.candidates || [];
+      setLinkedinCandidates(candidates);
+      setLinkedinMatches(candidates);
     } catch (err) {
       setLinkedinError(err.response?.data?.message || "Failed to load LinkedIn analysis");
     } finally {
@@ -151,6 +191,22 @@ const TalentSearch = () => {
     }
   };
 
+  const runLinkedinInputMatch = () => {
+    const ranked = linkedinCandidates
+      .map((candidate) => {
+        const matched = computeLinkedinMatchScore(formData, candidate);
+        return {
+          ...candidate,
+          score: matched.score,
+          recommendation: matched.recommendation,
+          reason: matched.reason
+        };
+      })
+      .sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
+
+    setLinkedinMatches(ranked);
+  };
+
   const filteredResults = useMemo(() => {
     return results.filter((candidate) => {
       if (candidate.match_score < Number(filters.minScore || 0)) return false;
@@ -179,12 +235,17 @@ const TalentSearch = () => {
           <div>
             <h2 className="text-xl font-semibold text-gray-900">LinkedIn Candidate Analysis</h2>
             <p className="mt-1 text-sm text-gray-500">
-              Latest candidates analyzed through extension integration.
+              Input-based ranking from LinkedIn extension analyzed profiles.
             </p>
           </div>
-          <button type="button" onClick={loadLinkedinCandidates} className="btn-secondary px-3 py-2 text-sm">
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={runLinkedinInputMatch} className="btn-primary px-3 py-2 text-sm">
+              Match by Job Input
+            </button>
+            <button type="button" onClick={loadLinkedinCandidates} className="btn-secondary px-3 py-2 text-sm">
+              Refresh
+            </button>
+          </div>
         </div>
 
         {linkedinError && (
@@ -198,13 +259,13 @@ const TalentSearch = () => {
             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
             Loading LinkedIn candidates...
           </div>
-        ) : linkedinCandidates.length === 0 ? (
+        ) : linkedinMatches.length === 0 ? (
           <div className="flex min-h-40 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 text-sm text-gray-500">
             No LinkedIn candidates yet
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {linkedinCandidates.map((candidate, index) => (
+            {linkedinMatches.map((candidate, index) => (
               <article key={`${candidate.name}-${index}`} className="rounded-xl border border-gray-100 p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -213,7 +274,7 @@ const TalentSearch = () => {
                   </div>
                   <div className={`rounded-xl px-3 py-2 text-center ${scorePill(Number(candidate.score || 0))}`}>
                     <p className="text-xl font-extrabold leading-none">{Number(candidate.score || 0)}%</p>
-                    <p className="mt-1 text-[11px] font-semibold">Match</p>
+                    <p className="mt-1 text-[11px] font-semibold">Input Match</p>
                   </div>
                 </div>
 
