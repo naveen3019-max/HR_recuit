@@ -2,7 +2,6 @@ import prisma from "../config/db.js";
 import env from "../config/env.js";
 import { ApiError } from "../utils/apiError.js";
 import { logError, logInfo } from "../utils/logger.js";
-import { fetchLinkedinProfiles } from "./linkedinService.js";
 
 const parseExperienceValue = (experienceText) => {
   if (!experienceText) return 0;
@@ -209,133 +208,80 @@ const mapTalentMatch = (record) => ({
   skills: record.candidate.skills
 });
 
-const mapLinkedinProfileToCandidateData = (profile) => ({
-  name: profile.fullName || `${profile.firstName || ""} ${profile.lastName || ""}`.trim() || "LinkedIn Candidate",
-  email: profile.emailAddress || null,
-  currentCompany: profile.currentCompany || null,
-  currentRole: profile.currentRole || null,
-  skills: Array.isArray(profile.skills) ? profile.skills : [],
-  experienceYears: Number(profile.experienceYears || 0),
-  education: profile.education || null,
-  location: profile.location || null,
-  linkedinUrl: profile.profileUrl || null,
-  summary: profile.summary || null,
-  openToWork: true
-});
-
-const persistLinkedinProfiles = async (profiles, recruiterId) => {
-  if (!profiles.length) return [];
-
-  const defaultStage = await prisma.recruitmentStage.findUnique({ where: { name: "Applied" } });
-  if (!defaultStage) {
-    throw new ApiError(500, "Default recruitment stage not found");
-  }
-
-  const candidates = [];
-
-  for (const profile of profiles) {
-    const mapped = mapLinkedinProfileToCandidateData(profile);
-    const lookup = mapped.linkedinUrl
-      ? { linkedinUrl: mapped.linkedinUrl }
-      : mapped.email
-        ? { email: mapped.email }
-        : null;
-
-    const existing = lookup
-      ? await prisma.candidate.findFirst({
-          where: lookup,
-          select: { id: true }
-        })
-      : null;
-
-    const candidate = existing
-      ? await prisma.candidate.update({
-          where: { id: existing.id },
-          data: {
-            ...mapped,
-            stageId: defaultStage.id
-          },
-          select: {
-            id: true,
-            name: true,
-            currentRole: true,
-            experienceYears: true,
-            skills: true,
-            location: true,
-            linkedinUrl: true,
-            summary: true
+const getDatabaseCandidates = async (jobInput) => {
+  let candidates = await prisma.candidate.findMany({
+    where: {
+      OR: [{ openToWork: true }, { linkedinUrl: { not: null } }],
+      ...(jobInput.location
+        ? {
+            location: {
+              contains: jobInput.location,
+              mode: "insensitive"
+            }
           }
-        })
-      : await prisma.candidate.create({
-          data: {
-            ...mapped,
-            stageId: defaultStage.id
-          },
-          select: {
-            id: true,
-            name: true,
-            currentRole: true,
-            experienceYears: true,
-            skills: true,
-            location: true,
-            linkedinUrl: true,
-            summary: true
+        : {}),
+      ...(jobInput.skills?.length
+        ? {
+            skills: {
+              hasSome: jobInput.skills
+            }
           }
-        });
+        : {})
+    },
+    select: {
+      id: true,
+      name: true,
+      currentRole: true,
+      experienceYears: true,
+      skills: true,
+      location: true,
+      linkedinUrl: true,
+      summary: true
+    },
+    orderBy: { createdAt: "desc" },
+    take: 80
+  });
 
-    await prisma.activityLog.create({
-      data: {
-        action: existing ? "LINKEDIN_SYNC" : "LINKEDIN_IMPORT",
-        userId: recruiterId,
-        candidateId: candidate.id,
-        metadata: {
-          source: "talent_search",
-          profileId: profile.id || null
-        }
-      }
+  if (candidates.length === 0) {
+    candidates = await prisma.candidate.findMany({
+      select: {
+        id: true,
+        name: true,
+        currentRole: true,
+        experienceYears: true,
+        skills: true,
+        location: true,
+        linkedinUrl: true,
+        summary: true
+      },
+      orderBy: { createdAt: "desc" },
+      take: 80
     });
-
-    candidates.push(candidate);
   }
 
   return candidates;
 };
 
 export const runTalentSearch = async (jobInput, recruiterId) => {
-  const normalizedJobInput = {
-    role: (jobInput.role || "General Opportunity").trim(),
-    experience_required: (jobInput.experience_required || "").trim(),
-    location: (jobInput.location || "").trim(),
-    skills: Array.isArray(jobInput.skills) ? jobInput.skills : [],
-    industry: (jobInput.industry || "").trim(),
-    additional_requirements: (jobInput.additional_requirements || "").trim(),
-    recruiter_access_token: jobInput.recruiter_access_token,
-    linkedin_profile_ids: jobInput.linkedin_profile_ids || []
-  };
-
-  const profiles = await fetchLinkedinProfiles(
-    normalizedJobInput.recruiter_access_token,
-    normalizedJobInput.linkedin_profile_ids || []
-  );
-  const candidates = await persistLinkedinProfiles(profiles, recruiterId);
-  const source = "linkedin";
+  const candidates = await getDatabaseCandidates(jobInput);
+  const source = "database";
 
   const searchRecord = await prisma.talentSearch.create({
     data: {
       recruiterId,
-      role: normalizedJobInput.role,
-      experienceRequired: normalizedJobInput.experience_required || null,
-      location: normalizedJobInput.location || null,
-      skills: normalizedJobInput.skills || [],
-      industry: normalizedJobInput.industry || null,
-      additionalRequirements: normalizedJobInput.additional_requirements || null
+      role: jobInput.role,
+      experienceRequired: jobInput.experience_required || null,
+      location: jobInput.location || null,
+      skills: jobInput.skills || [],
+      industry: jobInput.industry || null,
+      additionalRequirements: jobInput.additional_requirements || null
     }
   });
 
   if (candidates.length === 0) {
     return {
       search_id: searchRecord.id,
-      role: normalizedJobInput.role,
+      role: jobInput.role,
       source,
       total_candidates: 0,
       searched_at: searchRecord.createdAt,
@@ -346,20 +292,20 @@ export const runTalentSearch = async (jobInput, recruiterId) => {
   const preRankedCandidates = candidates
     .map((candidate) => ({
       ...candidate,
-      preRankScore: computePreRankScore(normalizedJobInput, candidate)
+      preRankScore: computePreRankScore(jobInput, candidate)
     }))
     .sort((a, b) => b.preRankScore - a.preRankScore)
     .slice(0, 30);
 
   const evaluated = await Promise.all(
     preRankedCandidates.map(async (candidate) => {
-      const aiResult = await callGeminiForTalentMatch(normalizedJobInput, candidate);
+      const aiResult = await callGeminiForTalentMatch(jobInput, candidate);
       return {
         candidateId: candidate.id,
         matchScore: aiResult.match_score,
-        summary: aiResult.candidate_summary || `${candidate.name} is a potential match for ${normalizedJobInput.role}.`,
+        summary: aiResult.candidate_summary || `${candidate.name} is a potential match for ${jobInput.role}.`,
         strengths: aiResult.strengths || [],
-        recommendedRole: aiResult.recommended_role || normalizedJobInput.role,
+        recommendedRole: aiResult.recommended_role || jobInput.role,
         roleFit: aiResult.role_fit || null
       };
     })
@@ -410,7 +356,7 @@ export const runTalentSearch = async (jobInput, recruiterId) => {
 
   return {
     search_id: searchRecord.id,
-    role: normalizedJobInput.role,
+    role: jobInput.role,
     source,
     total_candidates: ranked.length,
     searched_at: searchRecord.createdAt,

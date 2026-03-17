@@ -28,10 +28,9 @@ const TalentSearch = () => {
   const [results, setResults] = useState([]);
   const [searchMeta, setSearchMeta] = useState(null);
   const [savingMatchId, setSavingMatchId] = useState(null);
+  const [skillInput, setSkillInput] = useState("");
 
   const [formData, setFormData] = useState({
-    recruiter_access_token: "",
-    linkedin_profile_ids: [],
     role: "",
     experience_required: "",
     location: "",
@@ -51,6 +50,27 @@ const TalentSearch = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const addSkill = () => {
+    const skill = skillInput.trim();
+    if (!skill || formData.skills.includes(skill)) return;
+    setFormData((prev) => ({ ...prev, skills: [...prev.skills, skill] }));
+    setSkillInput("");
+  };
+
+  const removeSkill = (skillToRemove) => {
+    setFormData((prev) => ({
+      ...prev,
+      skills: prev.skills.filter((skill) => skill !== skillToRemove)
+    }));
+  };
+
+  const handleSkillKeyDown = (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addSkill();
+    }
+  };
+
   const handleSearch = async (event) => {
     event.preventDefault();
     setError(null);
@@ -58,8 +78,8 @@ const TalentSearch = () => {
 
     try {
       const payload = {
-        recruiter_access_token: formData.recruiter_access_token,
-        linkedin_profile_ids: formData.linkedin_profile_ids.map((id) => id.trim()).filter(Boolean)
+        ...formData,
+        skills: formData.skills.map((skill) => skill.trim()).filter(Boolean)
       };
 
       const { data } = await api.post("/talent/search", payload);
@@ -122,14 +142,14 @@ const TalentSearch = () => {
               Talent Search
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Fetch candidates directly from backend using LinkedIn Developer API credentials.
+              Describe the job requirement and get AI-ranked candidates from imported and internal profiles.
             </p>
           </div>
           {searchMeta && (
             <div className="rounded-xl bg-primary-50 px-4 py-3 text-right text-primary-800">
               <p className="text-sm font-semibold">Top {searchMeta.total_candidates} candidates</p>
               <p className="text-xs">Search ID: {searchMeta.search_id}</p>
-              <p className="text-xs">Source: LinkedIn API</p>
+              <p className="text-xs">Source: Database</p>
             </div>
           )}
         </div>
@@ -145,48 +165,110 @@ const TalentSearch = () => {
         )}
 
         <form onSubmit={handleSearch} className="grid gap-4 lg:grid-cols-2">
-          <div className="lg:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-gray-700">LinkedIn Recruiter Access Token</label>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Role</label>
             <input
-              type="password"
-              name="recruiter_access_token"
-              value={formData.recruiter_access_token}
+              type="text"
+              name="role"
+              value={formData.role}
               onChange={handleChange}
-              placeholder="Paste LinkedIn developer access token"
+              placeholder="Backend Developer"
               className="input-field"
               required
             />
-            <p className="mt-1 text-xs text-gray-500">Paste LinkedIn developer access token</p>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Experience Required</label>
+            <input
+              type="text"
+              name="experience_required"
+              value={formData.experience_required}
+              onChange={handleChange}
+              placeholder="3-5 years"
+              className="input-field"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Location</label>
+            <input
+              type="text"
+              name="location"
+              value={formData.location}
+              onChange={handleChange}
+              placeholder="Bangalore"
+              className="input-field"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Industry</label>
+            <input
+              type="text"
+              name="industry"
+              value={formData.industry}
+              onChange={handleChange}
+              placeholder="SaaS"
+              className="input-field"
+              required
+            />
           </div>
 
           <div className="lg:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-gray-700">LinkedIn Profile IDs</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Skills</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={skillInput}
+                onChange={(event) => setSkillInput(event.target.value)}
+                onKeyDown={handleSkillKeyDown}
+                placeholder="Node.js"
+                className="input-field"
+              />
+              <button type="button" onClick={addSkill} className="btn-primary px-4">
+                Add
+              </button>
+            </div>
+            {formData.skills.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {formData.skills.map((skill) => (
+                  <span
+                    key={skill}
+                    className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-3 py-1 text-sm text-primary-700"
+                  >
+                    {skill}
+                    <button type="button" onClick={() => removeSkill(skill)}>
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="lg:col-span-2">
+            <label className="mb-1 block text-sm font-medium text-gray-700">Additional Requirements (optional)</label>
             <textarea
-              value={formData.linkedin_profile_ids.join("\n")}
-              onChange={(event) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  linkedin_profile_ids: event.target.value
-                    .split(/[\n,]/)
-                    .map((id) => id.trim())
-                    .filter(Boolean)
-                }))
-              }
-              rows={4}
-              placeholder="Enter profile IDs, one per line"
+              name="additional_requirements"
+              value={formData.additional_requirements}
+              onChange={handleChange}
+              rows={3}
+              placeholder="Microservices, API performance tuning, production ownership"
               className="input-field"
-              required
             />
           </div>
 
           <div className="lg:col-span-2">
             <button
               type="submit"
-              disabled={loading || !formData.recruiter_access_token || formData.linkedin_profile_ids.length === 0}
+              disabled={loading || formData.skills.length === 0}
               className="btn-primary flex w-full items-center justify-center gap-2 py-3"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              {loading ? "Fetching..." : "Fetch from Backend"}
+              {loading ? "Searching..." : "Search Top Talent"}
             </button>
           </div>
         </form>
