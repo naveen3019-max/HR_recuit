@@ -7,6 +7,7 @@ import {
 } from "../services/linkedinService.js";
 import env from "../config/env.js";
 import { ApiError } from "../utils/apiError.js";
+import { logInfo } from "../utils/logger.js";
 
 const normalizeLinkedinAnalyzePayload = (payload) => {
   const candidate = payload.candidate || payload;
@@ -63,12 +64,26 @@ export const syncCandidateFromLinkedin = async (req, res, next) => {
 export const analyzeLinkedinProfileHandler = async (req, res, next) => {
   try {
     const apiKey = req.headers["x-api-key"];
-    if (!env.linkedinExtensionApiKey || apiKey !== env.linkedinExtensionApiKey) {
+    if (env.linkedinExtensionApiKey && apiKey !== env.linkedinExtensionApiKey) {
       throw new ApiError(401, "Unauthorized extension request");
     }
 
+    if (!env.linkedinExtensionApiKey && env.nodeEnv !== "production") {
+      logInfo("LinkedIn analyze request accepted without API key in non-production", {
+        ip: req.ip
+      });
+    }
+
     const normalized = normalizeLinkedinAnalyzePayload(req.validated.body);
+    logInfo("LinkedIn analyze profile received", {
+      name: normalized.name,
+      score: normalized.score,
+      skills: normalized.skills?.length || 0
+    });
     const saved = addRecentLinkedinAnalysis(normalized);
+    logInfo("LinkedIn analyze profile stored", {
+      totalStored: getRecentLinkedinAnalysis().length
+    });
     return res.status(201).json({ saved: true, candidate: saved });
   } catch (error) {
     return next(error);

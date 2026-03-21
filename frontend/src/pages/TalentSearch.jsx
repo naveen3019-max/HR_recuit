@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   AlertCircle,
@@ -67,6 +67,7 @@ const TalentSearch = () => {
   const [linkedinSaveLoading, setLinkedinSaveLoading] = useState(null);
   const [linkedinCandidates, setLinkedinCandidates] = useState([]);
   const [linkedinMatches, setLinkedinMatches] = useState([]);
+  const [linkedinSearchActive, setLinkedinSearchActive] = useState(false);
   const [results, setResults] = useState([]);
   const [searchMeta, setSearchMeta] = useState(null);
   const [savingMatchId, setSavingMatchId] = useState(null);
@@ -118,6 +119,7 @@ const TalentSearch = () => {
     setLinkedinError(null);
     try {
       const { data } = await api.get("/linkedin/recent-analysis");
+      console.log("LinkedIn data:", data);
       const candidates = data?.candidates || [];
       setLinkedinCandidates(candidates);
       setLinkedinMatches(candidates);
@@ -132,31 +134,40 @@ const TalentSearch = () => {
     loadLinkedinCandidates();
   }, []);
 
+  const pollerRef = useRef(null);
+
+  const startLinkedinPolling = () => {
+    if (pollerRef.current) return;
+    pollerRef.current = setInterval(() => {
+      loadLinkedinCandidates();
+    }, 5000);
+  };
+
+  const stopLinkedinPolling = () => {
+    if (!pollerRef.current) return;
+    clearInterval(pollerRef.current);
+    pollerRef.current = null;
+  };
+
+  useEffect(() => {
+    return () => {
+      stopLinkedinPolling();
+    };
+  }, []);
+
   const handleSearch = async (event) => {
     event.preventDefault();
     setError(null);
     setLoading(true);
 
-    try {
-      const payload = {
-        ...formData,
-        skills: formData.skills.map((skill) => skill.trim()).filter(Boolean)
-      };
+    const skills = formData.skills.map((skill) => skill.trim()).filter(Boolean);
+    const query = `${formData.role} ${skills.join(" ")} ${formData.location}`.trim();
+    const linkedinUrl = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(query)}`;
 
-      const { data } = await api.post("/talent/search", payload);
-      setResults(data.results || []);
-      setSearchMeta({
-        search_id: data.search_id,
-        source: data.source,
-        role: data.role,
-        total_candidates: data.total_candidates,
-        searched_at: data.searched_at
-      });
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to search talent");
-    } finally {
-      setLoading(false);
-    }
+    window.open(linkedinUrl, "_blank", "noopener,noreferrer");
+    setLinkedinSearchActive(true);
+    startLinkedinPolling();
+    setLoading(false);
   };
 
   const updateMatch = async (matchId, payload) => {
@@ -176,6 +187,7 @@ const TalentSearch = () => {
     setLinkedinSaveLoading(index);
     setLinkedinError(null);
     try {
+      console.log("Saving LinkedIn candidate:", candidate);
       await api.post("/candidates/add", {
         name: candidate.name,
         headline: candidate.headline,
@@ -230,214 +242,205 @@ const TalentSearch = () => {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <section className="card p-6">
-        <div className="mb-4 flex items-center justify-between gap-4">
+      <section className="card overflow-hidden">
+        <div className="flex flex-col gap-6 bg-linear-to-br from-slate-900 via-slate-800 to-slate-900 p-6 text-white md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">LinkedIn Candidate Analysis</h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Input-based ranking from LinkedIn extension analyzed profiles.
+            <p className="text-xs uppercase tracking-[0.25em] text-slate-300">AI Recruitment</p>
+            <h1 className="mt-2 text-3xl font-semibold">Live LinkedIn Talent Search 🚀</h1>
+            <p className="mt-2 max-w-xl text-sm text-slate-200">
+              Launch a LinkedIn search, let the extension analyze visible profiles, and watch candidates appear in real time.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={runLinkedinInputMatch} className="btn-primary px-3 py-2 text-sm">
-              Match by Job Input
+          <div className="flex flex-col items-start gap-3 md:items-end">
+            <button
+              type="submit"
+              form="talent-search-form"
+              disabled={loading || formData.skills.length === 0}
+              className="btn-primary px-6 py-3 text-sm"
+            >
+              {loading ? "Opening LinkedIn..." : "Search on LinkedIn"}
             </button>
-            <button type="button" onClick={loadLinkedinCandidates} className="btn-secondary px-3 py-2 text-sm">
-              Refresh
-            </button>
-          </div>
-        </div>
-
-        {linkedinError && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {linkedinError}
-          </div>
-        )}
-
-        {linkedinLoading ? (
-          <div className="flex min-h-40 items-center justify-center text-gray-500">
-            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-            Loading LinkedIn candidates...
-          </div>
-        ) : linkedinMatches.length === 0 ? (
-          <div className="flex min-h-40 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 text-sm text-gray-500">
-            No LinkedIn candidates yet
-          </div>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {linkedinMatches.map((candidate, index) => (
-              <article key={`${candidate.name}-${index}`} className="rounded-xl border border-gray-100 p-4 shadow-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-base font-semibold text-gray-900">{candidate.name}</h3>
-                    <p className="mt-0.5 text-sm text-gray-500">{candidate.headline || "Headline not available"}</p>
-                  </div>
-                  <div className={`rounded-xl px-3 py-2 text-center ${scorePill(Number(candidate.score || 0))}`}>
-                    <p className="text-xl font-extrabold leading-none">{Number(candidate.score || 0)}%</p>
-                    <p className="mt-1 text-[11px] font-semibold">Input Match</p>
-                  </div>
-                </div>
-
-                <p className="mt-3 text-sm text-gray-600">Location: {candidate.location || "N/A"}</p>
-
-                <div className="mt-3 rounded-lg bg-gray-50 p-3 text-sm text-gray-700">
-                  <p className="font-semibold text-gray-900">{candidate.recommendation}</p>
-                  <p className="mt-1">{candidate.reason}</p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => saveLinkedinCandidate(candidate, index)}
-                  disabled={linkedinSaveLoading === index}
-                  className="mt-4 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700"
-                >
-                  {linkedinSaveLoading === index ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  Save Candidate
-                </button>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="card p-6">
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <div>
-            <h1 className="flex items-center gap-2 text-2xl font-semibold text-gray-900">
-              <Sparkles className="h-6 w-6 text-primary-600" />
-              Talent Search
-            </h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Describe the job requirement and get AI-ranked candidates from imported and internal profiles.
-            </p>
-          </div>
-          {searchMeta && (
-            <div className="rounded-xl bg-primary-50 px-4 py-3 text-right text-primary-800">
-              <p className="text-sm font-semibold">Top {searchMeta.total_candidates} candidates</p>
-              <p className="text-xs">Search ID: {searchMeta.search_id}</p>
-              <p className="text-xs">Source: Database</p>
+            <div className="flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs">
+              <span
+                className={`h-2.5 w-2.5 rounded-full ${
+                  linkedinLoading
+                    ? "bg-yellow-300 animate-pulse"
+                    : linkedinMatches.length > 0
+                      ? "bg-emerald-400"
+                      : "bg-slate-400"
+                }`}
+              />
+              <span>
+                {linkedinLoading
+                  ? "Scanning LinkedIn profiles..."
+                  : linkedinMatches.length > 0
+                    ? "Candidates found"
+                    : "Waiting to start"}
+              </span>
             </div>
-          )}
+          </div>
         </div>
 
-        {error && (
-          <div className="mb-4 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-red-700">
-            <AlertCircle className="h-5 w-5 shrink-0" />
-            <p className="text-sm">{error}</p>
-            <button type="button" onClick={() => setError(null)} className="ml-auto">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-
-        <form onSubmit={handleSearch} className="grid gap-4 lg:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Role</label>
-            <input
-              type="text"
-              name="role"
-              value={formData.role}
-              onChange={handleChange}
-              placeholder="Backend Developer"
-              className="input-field"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Experience Required</label>
-            <input
-              type="text"
-              name="experience_required"
-              value={formData.experience_required}
-              onChange={handleChange}
-              placeholder="3-5 years"
-              className="input-field"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Location</label>
-            <input
-              type="text"
-              name="location"
-              value={formData.location}
-              onChange={handleChange}
-              placeholder="Bangalore"
-              className="input-field"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Industry</label>
-            <input
-              type="text"
-              name="industry"
-              value={formData.industry}
-              onChange={handleChange}
-              placeholder="SaaS"
-              className="input-field"
-              required
-            />
-          </div>
-
-          <div className="lg:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-gray-700">Skills</label>
-            <div className="flex gap-2">
+        <div className="grid gap-6 p-6 lg:grid-cols-[1.1fr_1.9fr]">
+          <form id="talent-search-form" onSubmit={handleSearch} className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Role</label>
               <input
                 type="text"
-                value={skillInput}
-                onChange={(event) => setSkillInput(event.target.value)}
-                onKeyDown={handleSkillKeyDown}
-                placeholder="Node.js"
-                className="input-field"
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                placeholder="Backend Developer"
+                className="input-field rounded-xl"
+                required
               />
-              <button type="button" onClick={addSkill} className="btn-primary px-4">
-                Add
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Skills</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={skillInput}
+                  onChange={(event) => setSkillInput(event.target.value)}
+                  onKeyDown={handleSkillKeyDown}
+                  placeholder="Node.js, AWS"
+                  className="input-field rounded-xl"
+                />
+                <button type="button" onClick={addSkill} className="btn-secondary px-4">
+                  Add
+                </button>
+              </div>
+              {formData.skills.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {formData.skills.map((skill) => (
+                    <span
+                      key={skill}
+                      className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700"
+                    >
+                      {skill}
+                      <button type="button" onClick={() => removeSkill(skill)}>
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Location</label>
+              <input
+                type="text"
+                name="location"
+                value={formData.location}
+                onChange={handleChange}
+                placeholder="Bangalore"
+                className="input-field rounded-xl"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Experience Required</label>
+              <input
+                type="text"
+                name="experience_required"
+                value={formData.experience_required}
+                onChange={handleChange}
+                placeholder="3-5 years"
+                className="input-field rounded-xl"
+                required
+              />
+            </div>
+
+            <div>
+              <button
+                type="button"
+                onClick={runLinkedinInputMatch}
+                className="btn-secondary w-full rounded-xl"
+              >
+                Re-rank LinkedIn Results
               </button>
             </div>
-            {formData.skills.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {formData.skills.map((skill) => (
-                  <span
-                    key={skill}
-                    className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-3 py-1 text-sm text-primary-700"
-                  >
-                    {skill}
-                    <button type="button" onClick={() => removeSkill(skill)}>
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </span>
+          </form>
+
+          <div>
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">LinkedIn Results Panel</h2>
+                <p className="text-sm text-gray-500">Live candidate analysis streaming from the extension.</p>
+              </div>
+              <button type="button" onClick={loadLinkedinCandidates} className="btn-secondary px-3 py-2 text-xs">
+                Refresh
+              </button>
+            </div>
+
+            {linkedinError && (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {linkedinError}
+              </div>
+            )}
+
+            {linkedinLoading ? (
+              <div className="flex min-h-40 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 text-sm text-gray-500">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Analyzing profiles... candidates will appear shortly
+              </div>
+            ) : linkedinMatches.length === 0 ? (
+              <div className="flex min-h-40 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 text-sm text-gray-500">
+                {linkedinSearchActive ? "Searching LinkedIn..." : "Click 'Search on LinkedIn' to begin"}
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {linkedinMatches.map((candidate, index) => (
+                  <article key={`${candidate.name}-${index}`} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-base font-semibold text-gray-900">{candidate.name}</h3>
+                        <p className="mt-1 text-sm text-gray-500">{candidate.headline || "Headline not available"}</p>
+                        <p className="mt-2 text-xs text-gray-500">{candidate.location || "Location not provided"}</p>
+                      </div>
+                      <div className={`rounded-2xl px-3 py-2 text-center ${scorePill(Number(candidate.score || 0))}`}>
+                        <p className="text-xl font-extrabold leading-none">{Number(candidate.score || 0)}%</p>
+                        <p className="mt-1 text-[11px] font-semibold">Match</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 rounded-xl bg-gray-50 p-3 text-sm text-gray-700">
+                      <p className="font-semibold text-gray-900">{candidate.recommendation}</p>
+                      <p className="mt-1 max-h-10 overflow-hidden text-xs text-gray-600">{candidate.reason}</p>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {candidate.linkedin_url || candidate.profile_url ? (
+                        <a
+                          href={candidate.linkedin_url || candidate.profile_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn-secondary px-3 py-2 text-xs"
+                        >
+                          View Profile
+                        </a>
+                      ) : (
+                        <span className="btn-secondary px-3 py-2 text-xs opacity-60">View Profile</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => saveLinkedinCandidate(candidate, index)}
+                        disabled={linkedinSaveLoading === index}
+                        className="btn-primary px-3 py-2 text-xs"
+                      >
+                        {linkedinSaveLoading === index ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                        <span className="ml-2">Save Candidate</span>
+                      </button>
+                    </div>
+                  </article>
                 ))}
               </div>
             )}
           </div>
-
-          <div className="lg:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-gray-700">Additional Requirements (optional)</label>
-            <textarea
-              name="additional_requirements"
-              value={formData.additional_requirements}
-              onChange={handleChange}
-              rows={3}
-              placeholder="Microservices, API performance tuning, production ownership"
-              className="input-field"
-            />
-          </div>
-
-          <div className="lg:col-span-2">
-            <button
-              type="submit"
-              disabled={loading || formData.skills.length === 0}
-              className="btn-primary flex w-full items-center justify-center gap-2 py-3"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              {loading ? "Searching..." : "Search Top Talent"}
-            </button>
-          </div>
-        </form>
+        </div>
       </section>
 
       <section className="card p-6">
