@@ -11,6 +11,15 @@ export const talentSearchSchema = z.object({
   })
 });
 
+export const globalTalentSearchSchema = z.object({
+  body: z.object({
+    role: z.string().min(2).max(200),
+    skills: z.array(z.string().min(1).max(80)).min(1),
+    location: z.string().max(120).optional().default(""),
+    experience_required: z.coerce.number().min(0).max(60).optional().default(0)
+  })
+});
+
 export const talentMatchParamsSchema = z.object({
   params: z.object({
     id: z.coerce.number().int().positive()

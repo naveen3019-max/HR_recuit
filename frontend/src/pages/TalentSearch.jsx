@@ -12,6 +12,8 @@ const scorePill = (score) => {
 
 const TalentSearch = () => {
   const [loading, setLoading] = useState(false);
+  const [globalSearching, setGlobalSearching] = useState(false);
+  const [globalLoadingMessage, setGlobalLoadingMessage] = useState("");
   const [error, setError] = useState(null);
   const [linkedinError, setLinkedinError] = useState(null);
   const [linkedinLoading, setLinkedinLoading] = useState(true);
@@ -193,6 +195,54 @@ const TalentSearch = () => {
     }
   };
 
+  const handleGlobalSearch = async (event) => {
+    event.preventDefault();
+    setError(null);
+    setGlobalSearching(true);
+    setGlobalLoadingMessage("Searching global talent pool...");
+
+    try {
+      const payload = {
+        role: formData.role.trim(),
+        skills: formData.skills.map((skill) => skill.trim()).filter(Boolean),
+        location: formData.location.trim(),
+        experience_required: Number(formData.experience_required.match(/\d+/)?.[0] || 0)
+      };
+
+      const analyzingTimer = setTimeout(() => {
+        setGlobalLoadingMessage("Analyzing candidates worldwide...");
+      }, 900);
+
+      const { data } = await api.post("/talent/global-search", payload);
+      clearTimeout(analyzingTimer);
+
+      const normalized = (data?.results || []).map((item, index) => ({
+        name: item.name,
+        headline: item.headline,
+        location: item.location || "Global",
+        score: Number(item.score || 0),
+        recommendation: item.score >= 75 ? "Strong Fit" : item.score >= 50 ? "Moderate" : "Low",
+        reason: item.summary,
+        source: item.source || "GlobalDataset",
+        profile_url: null,
+        globalId: `${item.name}-${item.source}-${index}`
+      }));
+
+      setLinkedinMatches(normalized);
+      setLinkedinCandidates(normalized);
+      setResults([]);
+      setLinkedinSearchActive(false);
+      stopLinkedinPolling();
+      stopStatusPolling();
+      setLinkedinSearchMessage("Global talent search completed");
+    } catch (err) {
+      setError(err.response?.data?.message || "Global search failed. Please retry.");
+    } finally {
+      setGlobalSearching(false);
+      setGlobalLoadingMessage("");
+    }
+  };
+
   const updateMatch = async (matchId, payload) => {
     setSavingMatchId(matchId);
     setError(null);
@@ -265,6 +315,14 @@ const TalentSearch = () => {
               className="btn-primary px-6 py-3 text-sm"
             >
               {loading ? "Starting Search..." : "Auto Search LinkedIn"}
+            </button>
+            <button
+              type="button"
+              onClick={handleGlobalSearch}
+              disabled={globalSearching || formData.skills.length === 0 || !formData.role.trim()}
+              className="btn-secondary px-6 py-3 text-sm"
+            >
+              {globalSearching ? "Searching Global Talent..." : "Find Global Talent 🌍"}
             </button>
             <div className="flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs">
               <span
@@ -343,7 +401,6 @@ const TalentSearch = () => {
                 onChange={handleChange}
                 placeholder="Bangalore"
                 className="input-field rounded-xl"
-                required
               />
             </div>
 
@@ -363,13 +420,19 @@ const TalentSearch = () => {
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
               {searchRequestId ? `Search Request: ${searchRequestId}` : "No active background request"}
             </div>
+
+            {globalSearching && (
+              <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs font-medium text-sky-700">
+                {globalLoadingMessage || "Searching global talent pool..."}
+              </div>
+            )}
           </form>
 
           <div>
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">LinkedIn Results Panel</h2>
-                <p className="text-sm text-gray-500">Live candidate analysis streaming from the extension.</p>
+                <h2 className="text-lg font-semibold text-gray-900">Global Talent Results</h2>
+                <p className="text-sm text-gray-500">AI-ranked candidates aggregated across internal and global sources.</p>
               </div>
               <button type="button" onClick={loadLinkedinCandidates} className="btn-secondary px-3 py-2 text-xs">
                 Refresh
@@ -389,17 +452,22 @@ const TalentSearch = () => {
               </div>
             ) : linkedinMatches.length === 0 ? (
               <div className="flex min-h-40 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 text-sm text-gray-500">
-                {linkedinSearchActive ? "Searching LinkedIn for candidates..." : "Submit role, skills, and location to start auto-search"}
+                {linkedinSearchActive ? "Searching talent sources..." : "Use Find Global Talent to discover candidates worldwide"}
               </div>
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
                 {linkedinMatches.map((candidate, index) => (
-                  <article key={`${candidate.name}-${index}`} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
+                  <article key={candidate.globalId || `${candidate.name}-${index}`} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <h3 className="text-base font-semibold text-gray-900">{candidate.name}</h3>
                         <p className="mt-1 text-sm text-gray-500">{candidate.headline || "Headline not available"}</p>
                         <p className="mt-2 text-xs text-gray-500">{candidate.location || "Location not provided"}</p>
+                        {candidate.source && (
+                          <span className="mt-2 inline-flex rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700">
+                            Source: {candidate.source}
+                          </span>
+                        )}
                       </div>
                       <div className={`rounded-2xl px-3 py-2 text-center ${scorePill(Number(candidate.score || 0))}`}>
                         <p className="text-xl font-extrabold leading-none">{Number(candidate.score || 0)}%</p>
@@ -428,11 +496,11 @@ const TalentSearch = () => {
                       <button
                         type="button"
                         onClick={() => saveLinkedinCandidate(candidate, index)}
-                        disabled={linkedinSaveLoading === index}
+                        disabled={linkedinSaveLoading === index || candidate.source !== "Internal"}
                         className="btn-primary px-3 py-2 text-xs"
                       >
                         {linkedinSaveLoading === index ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                        <span className="ml-2">Save Candidate</span>
+                        <span className="ml-2">{candidate.source === "Internal" ? "Save Candidate" : "Imported"}</span>
                       </button>
                     </div>
                   </article>

@@ -29,6 +29,20 @@ const scoreLocation = (jobLocation, candidateLocation) => {
   return candidateLocation.toLowerCase().includes(jobLocation.toLowerCase()) ? 100 : 0;
 };
 
+export const scoreGlobalCandidateProfile = (jobInput, candidate) => {
+  const requiredSkills = normalizeSkills(
+    Array.isArray(jobInput.skills) ? jobInput.skills : jobInput.required_skills || []
+  );
+  const candidateSkills = Array.isArray(candidate.skills) ? candidate.skills : [];
+
+  const skillsScore = scoreSkills(requiredSkills, candidateSkills);
+  const expectedExp = Number(jobInput.experience_required || jobInput.minimum_experience || 0);
+  const experienceScore = scoreExperience(expectedExp, Number(candidate.experience || candidate.experience_years || 0));
+  const locationScore = scoreLocation(jobInput.location || "", candidate.location || "");
+
+  return Math.round(skillsScore * 0.6 + experienceScore * 0.2 + locationScore * 0.2);
+};
+
 const fetchGithubSignals = async (githubUrl) => {
   if (!githubUrl) {
     return { github_score: 0, project_score: 0, project_signals: [] };
