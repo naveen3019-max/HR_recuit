@@ -35,6 +35,10 @@ app.use(
     origin: (origin, callback) => {
       // Allow requests with no origin (mobile apps, curl, Postman)
       if (!origin) return callback(null, true);
+      // Always allow browser extension service workers.
+      if (origin.startsWith("chrome-extension://")) {
+        return callback(null, true);
+      }
       if (corsAllowlist.includes(origin) || corsAllowlist.includes("*")) {
         return callback(null, true);
       }
