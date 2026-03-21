@@ -7,7 +7,9 @@
   "host_permissions": [
     "https://www.linkedin.com/*",
     "http://localhost:5000/*",
-    "https://*.up.railway.app/*"
+    "https://*.up.railway.app/*",
+    "https://*/*",
+    "http://*/*"
   ],
   "background": {
     "service_worker": "background.js",

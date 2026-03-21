@@ -1,4 +1,4 @@
-const POLL_INTERVAL_MINUTES = 0.5;
+const POLL_INTERVAL_MINUTES = 1;
 const MAX_PROFILES = 15;
 const POLL_ALARM = "linkedinQueuePoll";
 
@@ -21,6 +21,10 @@ const getConfig = async () => {
 
 const ensurePollAlarm = () => {
   chrome.alarms.create(POLL_ALARM, { periodInMinutes: POLL_INTERVAL_MINUTES });
+};
+
+const triggerImmediatePoll = () => {
+  pollBackendQueue();
 };
 
 const authHeaders = (apiKey) => ({
@@ -181,16 +185,27 @@ chrome.runtime.onInstalled.addListener(async () => {
     maxProfiles: existing.maxProfiles || defaultConfig.maxProfiles
   });
   ensurePollAlarm();
-  pollBackendQueue();
+  triggerImmediatePoll();
 });
 
 chrome.runtime.onStartup.addListener(() => {
   ensurePollAlarm();
-  pollBackendQueue();
+  triggerImmediatePoll();
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === POLL_ALARM) {
     pollBackendQueue();
   }
+});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "sync") return;
+  if (changes.backendBaseUrl || changes.extensionApiKey || changes.maxProfiles) {
+    triggerImmediatePoll();
+  }
+});
+
+chrome.action.onClicked.addListener(() => {
+  triggerImmediatePoll();
 });

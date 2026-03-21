@@ -38,6 +38,22 @@ After clicking search in the app, backend logs should include all of these:
 
 If only `start-search` and `recent-analysis` appear, extension polling is not connected to backend.
 
+## Quick diagnostics (service worker console)
+
+Run these commands in the extension service worker console:
+
+```js
+chrome.storage.sync.get(["backendBaseUrl", "extensionApiKey", "maxProfiles"], console.log);
+chrome.action.onClicked.dispatch?.();
+```
+
+Then click the extension icon once to force an immediate poll.
+
+Expected backend logs after one click:
+
+1. `GET /api/linkedin/pending-search`
+2. If queued search exists: `POST /api/linkedin/analyze-profile` and `POST /api/linkedin/search-complete`
+
 ## Security notes
 
 - Uses API key in `x-api-key` for extension to backend authentication.
