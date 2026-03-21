@@ -181,6 +181,9 @@ const TalentSearch = () => {
       startLinkedinPolling();
       startStatusPolling(data.request_id || null);
       setLinkedinSearchMessage(data.message || "Searching LinkedIn for candidates...");
+      if (data.extension_online === false) {
+        setLinkedinError("LinkedIn extension is offline. Open Chrome extension and verify backend URL/API key.");
+      }
     } catch (err) {
       setLinkedinError(err.response?.data?.message || "Failed to start LinkedIn background search");
       setLinkedinSearchActive(false);

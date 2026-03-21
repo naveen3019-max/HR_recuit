@@ -8,7 +8,10 @@ const recentLinkedinAnalysis = [];
 const MAX_RECENT_ANALYSIS = 50;
 const pendingLinkedinSearches = [];
 const SEARCH_LEASE_MS = 90 * 1000;
+const PENDING_SEARCH_TTL_MS = 2 * 60 * 1000;
 const MAX_QUEUE_SIZE = 30;
+const EXTENSION_HEARTBEAT_TTL_MS = 2 * 60 * 1000;
+let lastExtensionHeartbeatAt = null;
 
 const mapLinkedinProfileToCandidate = (profile, options = {}) => {
   const { openToWork = true } = options;
@@ -215,6 +218,25 @@ export const leasePendingLinkedinSearch = () => {
   return { ...candidate };
 };
 
+export const recordLinkedinExtensionHeartbeat = () => {
+  lastExtensionHeartbeatAt = new Date().toISOString();
+};
+
+export const getLinkedinExtensionHealth = () => {
+  if (!lastExtensionHeartbeatAt) {
+    return {
+      online: false,
+      last_seen_at: null
+    };
+  }
+
+  const isOnline = Date.now() - new Date(lastExtensionHeartbeatAt).getTime() <= EXTENSION_HEARTBEAT_TTL_MS;
+  return {
+    online: isOnline,
+    last_seen_at: lastExtensionHeartbeatAt
+  };
+};
+
 export const completeLinkedinSearch = ({ requestId, processedCount = 0, error = "" }) => {
   const existing = pendingLinkedinSearches.find((entry) => entry.request_id === requestId);
   if (!existing) {
@@ -231,5 +253,26 @@ export const completeLinkedinSearch = ({ requestId, processedCount = 0, error = 
 
 export const getLinkedinSearchStatus = (requestId) => {
   const existing = pendingLinkedinSearches.find((entry) => entry.request_id === requestId);
-  return existing ? { ...existing } : null;
+  if (!existing) {
+    return null;
+  }
+
+  const now = Date.now();
+  const createdAtMs = new Date(existing.created_at).getTime();
+  const leaseMs = existing.leased_until ? new Date(existing.leased_until).getTime() : null;
+
+  if (existing.status === "pending" && now - createdAtMs > PENDING_SEARCH_TTL_MS) {
+    existing.status = "failed";
+    existing.error = "LinkedIn extension appears offline. Check extension backend URL/API key and keep browser open.";
+    existing.completed_at = new Date().toISOString();
+  }
+
+  if (existing.status === "processing" && leaseMs && now > leaseMs) {
+    existing.status = "failed";
+    existing.error = "LinkedIn extension processing timed out. Verify extension permissions and service worker logs.";
+    existing.completed_at = new Date().toISOString();
+    existing.leased_until = null;
+  }
+
+  return { ...existing };
 };

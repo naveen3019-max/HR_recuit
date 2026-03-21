@@ -1,12 +1,14 @@
 import {
   addRecentLinkedinAnalysis,
   completeLinkedinSearch,
+  getLinkedinExtensionHealth,
   getLinkedinSearchStatus,
   getRecentLinkedinAnalysis,
   getLinkedinOAuthUrl,
   importLinkedinCandidates,
   leasePendingLinkedinSearch,
   queueLinkedinSearch,
+  recordLinkedinExtensionHeartbeat,
   syncLinkedinCandidate
 } from "../services/linkedinService.js";
 import env from "../config/env.js";
@@ -127,11 +129,16 @@ export const startLinkedinSearchHandler = async (req, res, next) => {
   try {
     const { role, skills, location } = req.validated.body;
     const entry = queueLinkedinSearch({ role, skills, location }, req.user.id);
+    const extensionHealth = getLinkedinExtensionHealth();
     return res.status(202).json({
       queued: true,
       request_id: entry.request_id,
       status: entry.status,
-      message: "Searching LinkedIn for candidates..."
+      extension_online: extensionHealth.online,
+      extension_last_seen_at: extensionHealth.last_seen_at,
+      message: extensionHealth.online
+        ? "Searching LinkedIn for candidates..."
+        : "Search queued. Waiting for LinkedIn extension to connect..."
     });
   } catch (error) {
     return next(error);
@@ -141,6 +148,7 @@ export const startLinkedinSearchHandler = async (req, res, next) => {
 export const leaseLinkedinSearchHandler = async (req, res, next) => {
   try {
     verifyExtensionApiKey(req);
+    recordLinkedinExtensionHeartbeat();
     const nextSearch = leasePendingLinkedinSearch();
     if (!nextSearch) {
       return res.json({ available: false });
