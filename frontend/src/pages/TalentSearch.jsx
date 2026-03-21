@@ -89,6 +89,7 @@ const TalentSearch = () => {
   }, []);
 
   const pollerRef = useRef(null);
+  const statusPollerRef = useRef(null);
 
   const startLinkedinPolling = () => {
     if (pollerRef.current) return;
@@ -103,9 +104,59 @@ const TalentSearch = () => {
     pollerRef.current = null;
   };
 
+  const stopStatusPolling = () => {
+    if (!statusPollerRef.current) return;
+    clearInterval(statusPollerRef.current);
+    statusPollerRef.current = null;
+  };
+
+  const loadLinkedinSearchStatus = async (requestId) => {
+    if (!requestId) return;
+
+    try {
+      const { data } = await api.get(`/linkedin/search-status/${requestId}`);
+      const search = data?.search;
+      if (!search) return;
+
+      if (search.status === "pending") {
+        setLinkedinSearchMessage("Queued for extension processing...");
+      }
+
+      if (search.status === "processing") {
+        setLinkedinSearchMessage("Searching LinkedIn for candidates...");
+      }
+
+      if (search.status === "completed") {
+        setLinkedinSearchMessage(`Search complete: ${search.processed_count || 0} profile(s) processed`);
+        setLinkedinSearchActive(false);
+        setLinkedinLoading(false);
+        stopStatusPolling();
+      }
+
+      if (search.status === "failed") {
+        setLinkedinError(search.error || "LinkedIn background search failed");
+        setLinkedinSearchActive(false);
+        setLinkedinLoading(false);
+        stopStatusPolling();
+      }
+    } catch {
+      // Keep polling silently; recent-analysis polling still updates cards.
+    }
+  };
+
+  const startStatusPolling = (requestId) => {
+    if (!requestId) return;
+    stopStatusPolling();
+    loadLinkedinSearchStatus(requestId);
+    statusPollerRef.current = setInterval(() => {
+      loadLinkedinSearchStatus(requestId);
+    }, 5000);
+  };
+
   useEffect(() => {
     return () => {
       stopLinkedinPolling();
+      stopStatusPolling();
     };
   }, []);
 
@@ -126,7 +177,9 @@ const TalentSearch = () => {
       const { data } = await api.post("/linkedin/start-search", payload);
       setSearchRequestId(data.request_id || null);
       setLinkedinSearchActive(true);
+      setLinkedinLoading(true);
       startLinkedinPolling();
+      startStatusPolling(data.request_id || null);
       setLinkedinSearchMessage(data.message || "Searching LinkedIn for candidates...");
     } catch (err) {
       setLinkedinError(err.response?.data?.message || "Failed to start LinkedIn background search");

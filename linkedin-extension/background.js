@@ -1,5 +1,6 @@
-const POLL_INTERVAL_MINUTES = 0.1;
+const POLL_INTERVAL_MINUTES = 0.5;
 const MAX_PROFILES = 15;
+const POLL_ALARM = "linkedinQueuePoll";
 
 const defaultConfig = {
   backendBaseUrl: "http://localhost:5000",
@@ -14,8 +15,12 @@ const getConfig = async () => {
   return {
     backendBaseUrl: (stored.backendBaseUrl || defaultConfig.backendBaseUrl).replace(/\/+$/, ""),
     extensionApiKey: stored.extensionApiKey || defaultConfig.extensionApiKey,
-    maxProfiles: Number(stored.maxProfiles || defaultConfig.maxProfiles)
+    maxProfiles: Math.max(5, Math.min(20, Number(stored.maxProfiles || defaultConfig.maxProfiles)))
   };
+};
+
+const ensurePollAlarm = () => {
+  chrome.alarms.create(POLL_ALARM, { periodInMinutes: POLL_INTERVAL_MINUTES });
 };
 
 const authHeaders = (apiKey) => ({
@@ -138,7 +143,7 @@ const pollBackendQueue = async () => {
   try {
     const config = await getConfig();
     if (!config.extensionApiKey) {
-      pollInFlight = false;
+      console.warn("LinkedIn automation skipped: extensionApiKey is not configured");
       return;
     }
 
@@ -150,35 +155,42 @@ const pollBackendQueue = async () => {
     });
 
     if (!response.ok) {
-      pollInFlight = false;
+      console.warn("LinkedIn queue poll failed", response.status);
       return;
     }
 
     const payload = await response.json();
     if (!payload.available || !payload.search) {
-      pollInFlight = false;
       return;
     }
 
     await processQueuedSearch(payload.search, config);
-  } catch {
+  } catch (error) {
     // Keep the worker alive and continue polling on the next alarm tick.
+    console.error("LinkedIn queue poll error", error);
   } finally {
     pollInFlight = false;
   }
 };
 
 chrome.runtime.onInstalled.addListener(async () => {
-  await chrome.storage.sync.set(defaultConfig);
-  chrome.alarms.create("linkedinQueuePoll", { periodInMinutes: POLL_INTERVAL_MINUTES });
+  const existing = await chrome.storage.sync.get(["backendBaseUrl", "extensionApiKey", "maxProfiles"]);
+  await chrome.storage.sync.set({
+    backendBaseUrl: existing.backendBaseUrl || defaultConfig.backendBaseUrl,
+    extensionApiKey: existing.extensionApiKey || defaultConfig.extensionApiKey,
+    maxProfiles: existing.maxProfiles || defaultConfig.maxProfiles
+  });
+  ensurePollAlarm();
+  pollBackendQueue();
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  chrome.alarms.create("linkedinQueuePoll", { periodInMinutes: POLL_INTERVAL_MINUTES });
+  ensurePollAlarm();
+  pollBackendQueue();
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === "linkedinQueuePoll") {
+  if (alarm.name === POLL_ALARM) {
     pollBackendQueue();
   }
 });
