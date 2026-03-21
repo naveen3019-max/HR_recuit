@@ -162,6 +162,54 @@ const generateAiExplanation = async (job, candidate) => {
   }
 };
 
+const normalizeLinkedinJobInput = (jobInput = {}) => ({
+  job_title: jobInput.role || jobInput.job_title || "LinkedIn Search",
+  required_skills: Array.isArray(jobInput.skills)
+    ? jobInput.skills
+    : Array.isArray(jobInput.required_skills)
+      ? jobInput.required_skills
+      : [],
+  minimum_experience: Number(jobInput.minimum_experience || jobInput.experience_required || 0),
+  location: jobInput.location || "",
+  job_description: jobInput.job_description || ""
+});
+
+const normalizeLinkedinCandidateInput = (candidate = {}) => ({
+  name: candidate.name || "Unknown Candidate",
+  role: candidate.headline || candidate.current_role || "",
+  skills: Array.isArray(candidate.skills) ? candidate.skills : [],
+  experience_years: Number(candidate.experience || candidate.experience_years || 0),
+  location: candidate.location || "",
+  linkedin_url: candidate.profile_url || candidate.linkedin_url || null,
+  github_url: candidate.github_url || null,
+  project_signals: [],
+  summary: candidate.headline || ""
+});
+
+export const scoreLinkedinCandidateForJob = async (jobInput, candidate) => {
+  const job = normalizeLinkedinJobInput(jobInput);
+  const normalizedCandidate = normalizeLinkedinCandidateInput(candidate);
+  const requiredSkills = normalizeSkills(job.required_skills);
+
+  const scoreParts = {
+    skill_score: scoreSkills(requiredSkills, normalizedCandidate.skills),
+    experience_score: scoreExperience(job.minimum_experience, normalizedCandidate.experience_years),
+    location_score: scoreLocation(job.location, normalizedCandidate.location),
+    github_score: 0,
+    project_score: 0
+  };
+
+  const matchScore = calculateMatchScore(scoreParts);
+  const analysis = await generateAiExplanation(job, normalizedCandidate);
+
+  return {
+    score: matchScore,
+    recommendation: matchScore >= 75 ? "Strong Fit" : matchScore >= 50 ? "Moderate" : "Low",
+    reason: analysis,
+    breakdown: scoreParts
+  };
+};
+
 export const matchCandidatesForJob = async (jobInput) => {
   let candidates = await prisma.candidate.findMany({
     where: { openToWork: true },

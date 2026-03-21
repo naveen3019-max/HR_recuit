@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "HR Recruit LinkedIn Automation",
+  "version": "1.0.0",
+  "description": "Receives backend search triggers, opens LinkedIn search in a background tab, extracts visible candidate snippets, and posts them for AI scoring.",
+  "permissions": ["tabs", "scripting", "alarms", "storage"],
+  "host_permissions": [
+    "https://www.linkedin.com/*",
+    "http://localhost:5000/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "HR Recruit LinkedIn Automation"
+  }
+}

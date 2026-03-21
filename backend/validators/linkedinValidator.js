@@ -1,5 +1,21 @@
 import { z } from "zod";
 
+export const linkedinStartSearchSchema = z.object({
+  body: z.object({
+    role: z.string().min(2).max(120),
+    skills: z.array(z.string().min(1).max(80)).min(1).max(20),
+    location: z.string().min(2).max(120)
+  })
+});
+
+export const linkedinSearchCompleteSchema = z.object({
+  body: z.object({
+    request_id: z.string().uuid(),
+    processed_count: z.coerce.number().int().min(0).max(50).optional().default(0),
+    error: z.string().max(500).optional().default("")
+  })
+});
+
 export const linkedinImportProfileSchema = z.object({
   body: z.object({
     recruiterAccessToken: z.string().min(10),
@@ -40,6 +56,14 @@ export const linkedinAnalyzeProfileSchema = z.object({
           score: z.coerce.number().min(0).max(100).optional(),
           recommendation: z.enum(["Strong Fit", "Moderate", "Low"]).optional(),
           reason: z.string().max(1000).optional()
+        })
+        .optional(),
+      job_context: z
+        .object({
+          role: z.string().min(2).max(120),
+          skills: z.array(z.string().min(1).max(80)).optional().default([]),
+          location: z.string().max(120).optional().default(""),
+          experience_required: z.coerce.number().min(0).max(60).optional().default(0)
         })
         .optional()
     })

@@ -1,10 +1,14 @@
 import axios from "axios";
+import { randomUUID } from "crypto";
 import env from "../config/env.js";
 import prisma from "../config/db.js";
 import { ApiError } from "../utils/apiError.js";
 
 const recentLinkedinAnalysis = [];
 const MAX_RECENT_ANALYSIS = 50;
+const pendingLinkedinSearches = [];
+const SEARCH_LEASE_MS = 90 * 1000;
+const MAX_QUEUE_SIZE = 30;
 
 const mapLinkedinProfileToCandidate = (profile, options = {}) => {
   const { openToWork = true } = options;
@@ -147,4 +151,85 @@ export const addRecentLinkedinAnalysis = (entry) => {
 
 export const getRecentLinkedinAnalysis = () => {
   return [...recentLinkedinAnalysis];
+};
+
+const sanitizeKeyword = (value) => String(value || "").trim().replace(/\s+/g, " ");
+
+const buildLinkedinSearchQuery = ({ role, skills = [], location }) => {
+  const rolePart = sanitizeKeyword(role);
+  const locationPart = sanitizeKeyword(location);
+  const skillsPart = (skills || [])
+    .map((skill) => sanitizeKeyword(skill))
+    .filter(Boolean)
+    .slice(0, 8)
+    .join(" ");
+
+  return [rolePart, skillsPart, locationPart].filter(Boolean).join(" ");
+};
+
+export const queueLinkedinSearch = ({ role, skills, location }, requestedBy) => {
+  if (pendingLinkedinSearches.length >= MAX_QUEUE_SIZE) {
+    throw new ApiError(429, "LinkedIn automation queue is full. Please retry shortly.");
+  }
+
+  const query = buildLinkedinSearchQuery({ role, skills, location });
+  const requestId = randomUUID();
+
+  const entry = {
+    request_id: requestId,
+    query,
+    search_url: `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(query)}`,
+    role,
+    skills,
+    location,
+    status: "pending",
+    requested_by: requestedBy,
+    created_at: new Date().toISOString(),
+    leased_until: null,
+    started_at: null,
+    completed_at: null,
+    processed_count: 0
+  };
+
+  pendingLinkedinSearches.unshift(entry);
+  return entry;
+};
+
+export const leasePendingLinkedinSearch = () => {
+  const now = Date.now();
+  const candidate = pendingLinkedinSearches.find((entry) => {
+    if (entry.status === "pending") return true;
+    if (entry.status === "processing" && entry.leased_until && new Date(entry.leased_until).getTime() < now) {
+      return true;
+    }
+    return false;
+  });
+
+  if (!candidate) {
+    return null;
+  }
+
+  candidate.status = "processing";
+  candidate.started_at = candidate.started_at || new Date().toISOString();
+  candidate.leased_until = new Date(now + SEARCH_LEASE_MS).toISOString();
+  return { ...candidate };
+};
+
+export const completeLinkedinSearch = ({ requestId, processedCount = 0, error = "" }) => {
+  const existing = pendingLinkedinSearches.find((entry) => entry.request_id === requestId);
+  if (!existing) {
+    throw new ApiError(404, "Search request not found");
+  }
+
+  existing.status = error ? "failed" : "completed";
+  existing.completed_at = new Date().toISOString();
+  existing.processed_count = Number(processedCount || 0);
+  existing.error = error || null;
+  existing.leased_until = null;
+  return { ...existing };
+};
+
+export const getLinkedinSearchStatus = (requestId) => {
+  const existing = pendingLinkedinSearches.find((entry) => entry.request_id === requestId);
+  return existing ? { ...existing } : null;
 };

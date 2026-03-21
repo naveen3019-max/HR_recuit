@@ -1,18 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  AlertCircle,
-  Briefcase,
-  Filter,
-  Loader2,
-  MapPin,
-  Save,
-  Search,
-  Sparkles,
-  Star,
-  UserCheck,
-  X
-} from "lucide-react";
+import { Briefcase, Filter, Loader2, MapPin, Save, Star, UserCheck, X } from "lucide-react";
 import api from "../services/api";
 
 const scorePill = (score) => {
@@ -20,43 +8,6 @@ const scorePill = (score) => {
   if (score >= 70) return "bg-sky-100 text-sky-700";
   if (score >= 55) return "bg-amber-100 text-amber-700";
   return "bg-slate-100 text-slate-700";
-};
-
-const normalizeSkillList = (skills = []) =>
-  skills.map((skill) => String(skill || "").toLowerCase().trim()).filter(Boolean);
-
-const parseExperienceValue = (value) => {
-  const nums = String(value || "")
-    .match(/\d+/g)
-    ?.map(Number)
-    .filter((n) => !Number.isNaN(n));
-  if (!nums?.length) return 0;
-  return Math.max(...nums);
-};
-
-const computeLinkedinMatchScore = (jobInput, candidate) => {
-  const requiredSkills = normalizeSkillList(jobInput.skills || []);
-  const candidateSkills = new Set(normalizeSkillList(candidate.skills || []));
-  const skillMatched = requiredSkills.filter((skill) => candidateSkills.has(skill)).length;
-  const skillScore = requiredSkills.length ? Math.round((skillMatched / requiredSkills.length) * 60) : 0;
-
-  const expectedExp = parseExperienceValue(jobInput.experience_required);
-  const candidateExp = Number(candidate.experience || 0);
-  const expScore = expectedExp > 0 ? Math.min(20, Math.round((candidateExp / expectedExp) * 20)) : 10;
-
-  const jobLocation = String(jobInput.location || "").toLowerCase().trim();
-  const candidateLocation = String(candidate.location || "").toLowerCase().trim();
-  const locationScore = jobLocation && candidateLocation && candidateLocation.includes(jobLocation) ? 20 : 0;
-
-  const score = Math.max(0, Math.min(100, skillScore + expScore + locationScore));
-  const recommendation = score >= 75 ? "Strong Fit" : score >= 50 ? "Moderate" : "Low";
-  const reason = `Skill match ${skillMatched}/${requiredSkills.length || 0}, experience ${candidateExp} yrs, location ${locationScore > 0 ? "matched" : "not matched"}.`;
-
-  return {
-    score,
-    recommendation,
-    reason
-  };
 };
 
 const TalentSearch = () => {
@@ -68,8 +19,9 @@ const TalentSearch = () => {
   const [linkedinCandidates, setLinkedinCandidates] = useState([]);
   const [linkedinMatches, setLinkedinMatches] = useState([]);
   const [linkedinSearchActive, setLinkedinSearchActive] = useState(false);
+  const [linkedinSearchMessage, setLinkedinSearchMessage] = useState("Waiting to start");
+  const [searchRequestId, setSearchRequestId] = useState(null);
   const [results, setResults] = useState([]);
-  const [searchMeta, setSearchMeta] = useState(null);
   const [savingMatchId, setSavingMatchId] = useState(null);
   const [skillInput, setSkillInput] = useState("");
 
@@ -119,10 +71,12 @@ const TalentSearch = () => {
     setLinkedinError(null);
     try {
       const { data } = await api.get("/linkedin/recent-analysis");
-      console.log("LinkedIn data:", data);
       const candidates = data?.candidates || [];
       setLinkedinCandidates(candidates);
       setLinkedinMatches(candidates);
+      if (candidates.length > 0) {
+        setLinkedinSearchMessage("LinkedIn candidates received");
+      }
     } catch (err) {
       setLinkedinError(err.response?.data?.message || "Failed to load LinkedIn analysis");
     } finally {
@@ -159,15 +113,28 @@ const TalentSearch = () => {
     event.preventDefault();
     setError(null);
     setLoading(true);
+    setLinkedinError(null);
+    setLinkedinSearchMessage("Searching LinkedIn for candidates...");
 
-    const skills = formData.skills.map((skill) => skill.trim()).filter(Boolean);
-    const query = `${formData.role} ${skills.join(" ")} ${formData.location}`.trim();
-    const linkedinUrl = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(query)}`;
+    try {
+      const payload = {
+        role: formData.role.trim(),
+        skills: formData.skills.map((skill) => skill.trim()).filter(Boolean),
+        location: formData.location.trim()
+      };
 
-    window.open(linkedinUrl, "_blank", "noopener,noreferrer");
-    setLinkedinSearchActive(true);
-    startLinkedinPolling();
-    setLoading(false);
+      const { data } = await api.post("/linkedin/start-search", payload);
+      setSearchRequestId(data.request_id || null);
+      setLinkedinSearchActive(true);
+      startLinkedinPolling();
+      setLinkedinSearchMessage(data.message || "Searching LinkedIn for candidates...");
+    } catch (err) {
+      setLinkedinError(err.response?.data?.message || "Failed to start LinkedIn background search");
+      setLinkedinSearchActive(false);
+      stopLinkedinPolling();
+    } finally {
+      setLoading(false);
+    }
   };
 
   const updateMatch = async (matchId, payload) => {
@@ -187,7 +154,6 @@ const TalentSearch = () => {
     setLinkedinSaveLoading(index);
     setLinkedinError(null);
     try {
-      console.log("Saving LinkedIn candidate:", candidate);
       await api.post("/candidates/add", {
         name: candidate.name,
         headline: candidate.headline,
@@ -201,22 +167,6 @@ const TalentSearch = () => {
     } finally {
       setLinkedinSaveLoading(null);
     }
-  };
-
-  const runLinkedinInputMatch = () => {
-    const ranked = linkedinCandidates
-      .map((candidate) => {
-        const matched = computeLinkedinMatchScore(formData, candidate);
-        return {
-          ...candidate,
-          score: matched.score,
-          recommendation: matched.recommendation,
-          reason: matched.reason
-        };
-      })
-      .sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
-
-    setLinkedinMatches(ranked);
   };
 
   const filteredResults = useMemo(() => {
@@ -258,7 +208,7 @@ const TalentSearch = () => {
               disabled={loading || formData.skills.length === 0}
               className="btn-primary px-6 py-3 text-sm"
             >
-              {loading ? "Opening LinkedIn..." : "Search on LinkedIn"}
+              {loading ? "Starting Search..." : "Auto Search LinkedIn"}
             </button>
             <div className="flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs">
               <span
@@ -275,7 +225,7 @@ const TalentSearch = () => {
                   ? "Scanning LinkedIn profiles..."
                   : linkedinMatches.length > 0
                     ? "Candidates found"
-                    : "Waiting to start"}
+                    : linkedinSearchMessage}
               </span>
             </div>
           </div>
@@ -354,14 +304,8 @@ const TalentSearch = () => {
               />
             </div>
 
-            <div>
-              <button
-                type="button"
-                onClick={runLinkedinInputMatch}
-                className="btn-secondary w-full rounded-xl"
-              >
-                Re-rank LinkedIn Results
-              </button>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+              {searchRequestId ? `Search Request: ${searchRequestId}` : "No active background request"}
             </div>
           </form>
 
@@ -389,7 +333,7 @@ const TalentSearch = () => {
               </div>
             ) : linkedinMatches.length === 0 ? (
               <div className="flex min-h-40 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 text-sm text-gray-500">
-                {linkedinSearchActive ? "Searching LinkedIn..." : "Click 'Search on LinkedIn' to begin"}
+                {linkedinSearchActive ? "Searching LinkedIn for candidates..." : "Submit role, skills, and location to start auto-search"}
               </div>
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
