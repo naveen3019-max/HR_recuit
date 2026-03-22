@@ -45,9 +45,17 @@ const normalizeCandidate = (candidate) => ({
   headline: candidate.headline || candidate.currentRole || "Talent Profile",
   skills: (candidate.skills || []).map((item) => normalizeSkill(item)).filter(Boolean),
   experience: Number(candidate.experience || candidate.experienceYears || 0),
-  location: candidate.location || "Global",
+  location: candidate.location || "",
   source: candidate.source || "Internal"
 });
+
+const isLocationMatch = (requestedLocation, candidateLocation) => {
+  const wanted = normalizeSkill(requestedLocation);
+  const actual = normalizeSkill(candidateLocation);
+  if (!wanted) return true;
+  if (!actual) return false;
+  return actual.includes(wanted) || wanted.includes(actual);
+};
 
 const buildSummary = (jobInput, candidate, score) => {
   const required = (jobInput.skills || []).map(normalizeSkill).filter(Boolean);
@@ -237,20 +245,33 @@ export const runGlobalTalentSearch = async (jobInput, recruiterId) => {
     ...SAMPLE_GLOBAL_CANDIDATES.map(normalizeCandidate)
   ]);
 
-  const ranked = combined
+  const scored = combined
     .map((candidate) => {
       const score = scoreGlobalCandidateProfile(jobInput, candidate);
       return {
         name: candidate.name,
         headline: candidate.headline,
-        location: candidate.location || "Global",
+        location: candidate.location || jobInput.location || "Global",
         score,
         summary: buildSummary(jobInput, candidate, score),
-        source: candidate.source
+        source: candidate.source,
+        location_match: isLocationMatch(jobInput.location, candidate.location)
       };
     })
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 10);
+    .sort((a, b) => b.score - a.score);
+
+  const rankedByLocation = jobInput.location
+    ? [...scored].sort((a, b) => Number(b.location_match) - Number(a.location_match) || b.score - a.score)
+    : scored;
+
+  const ranked = rankedByLocation.slice(0, 10).map((candidate) => ({
+    name: candidate.name,
+    headline: candidate.headline,
+    location: candidate.location,
+    score: candidate.score,
+    summary: candidate.summary,
+    source: candidate.source
+  }));
 
   logInfo("Global talent discovery completed", {
     recruiterId,
