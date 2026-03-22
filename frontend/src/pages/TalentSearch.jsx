@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Briefcase, Filter, Loader2, MapPin, Save, Star, UserCheck, X } from "lucide-react";
+import { AlertCircle, Briefcase, Filter, Loader2, MapPin, Save, Star, UserCheck, X } from "lucide-react";
 import api from "../services/api";
 
 const scorePill = (score) => {
@@ -41,6 +41,12 @@ const TalentSearch = () => {
     location: "",
     skill: ""
   });
+
+  const getPreparedSkills = () => {
+    const typed = skillInput.trim();
+    const merged = typed ? [...formData.skills, typed] : [...formData.skills];
+    return Array.from(new Set(merged.map((skill) => skill.trim()).filter(Boolean)));
+  };
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -172,7 +178,7 @@ const TalentSearch = () => {
     try {
       const payload = {
         role: formData.role.trim(),
-        skills: formData.skills.map((skill) => skill.trim()).filter(Boolean),
+        skills: getPreparedSkills(),
         location: formData.location.trim()
       };
 
@@ -200,16 +206,17 @@ const TalentSearch = () => {
     setError(null);
     setGlobalSearching(true);
     setGlobalLoadingMessage("Searching global talent pool...");
+    let analyzingTimer;
 
     try {
       const payload = {
         role: formData.role.trim(),
-        skills: formData.skills.map((skill) => skill.trim()).filter(Boolean),
+        skills: getPreparedSkills(),
         location: formData.location.trim(),
         experience_required: Number(formData.experience_required.match(/\d+/)?.[0] || 0)
       };
 
-      const analyzingTimer = setTimeout(() => {
+      analyzingTimer = setTimeout(() => {
         setGlobalLoadingMessage("Analyzing candidates worldwide...");
       }, 900);
 
@@ -236,8 +243,10 @@ const TalentSearch = () => {
       stopStatusPolling();
       setLinkedinSearchMessage("Global talent search completed");
     } catch (err) {
+      if (analyzingTimer) clearTimeout(analyzingTimer);
       setError(err.response?.data?.message || "Global search failed. Please retry.");
     } finally {
+      if (analyzingTimer) clearTimeout(analyzingTimer);
       setGlobalSearching(false);
       setGlobalLoadingMessage("");
     }
@@ -298,6 +307,15 @@ const TalentSearch = () => {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        </div>
+      )}
+
       <section className="card overflow-hidden">
         <div className="flex flex-col gap-6 bg-linear-to-br from-slate-900 via-slate-800 to-slate-900 p-6 text-white md:flex-row md:items-center md:justify-between">
           <div>
@@ -311,7 +329,7 @@ const TalentSearch = () => {
             <button
               type="submit"
               form="talent-search-form"
-              disabled={loading || formData.skills.length === 0}
+              disabled={loading || getPreparedSkills().length === 0 || !formData.role.trim()}
               className="btn-primary px-6 py-3 text-sm"
             >
               {loading ? "Starting Search..." : "Auto Search LinkedIn"}
@@ -319,7 +337,7 @@ const TalentSearch = () => {
             <button
               type="button"
               onClick={handleGlobalSearch}
-              disabled={globalSearching || formData.skills.length === 0 || !formData.role.trim()}
+              disabled={globalSearching || getPreparedSkills().length === 0 || !formData.role.trim()}
               className="btn-secondary px-6 py-3 text-sm"
             >
               {globalSearching ? "Searching Global Talent..." : "Find Global Talent 🌍"}
