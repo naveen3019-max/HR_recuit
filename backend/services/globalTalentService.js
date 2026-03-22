@@ -3,41 +3,6 @@ import env from "../config/env.js";
 import { logError, logInfo } from "../utils/logger.js";
 import { scoreGlobalCandidateProfile } from "./candidateMatchingService.js";
 
-const SAMPLE_GLOBAL_CANDIDATES = [
-  {
-    name: "Aarav Patel",
-    headline: "Senior Full Stack Engineer",
-    skills: ["javascript", "react", "node.js", "typescript", "aws"],
-    experience: 7,
-    location: "India",
-    source: "GlobalDataset"
-  },
-  {
-    name: "Sofia Alvarez",
-    headline: "Data Engineer & MLOps Specialist",
-    skills: ["python", "pandas", "spark", "airflow", "docker"],
-    experience: 6,
-    location: "Spain",
-    source: "GlobalDataset"
-  },
-  {
-    name: "Kwame Mensah",
-    headline: "Backend Platform Engineer",
-    skills: ["java", "spring boot", "kafka", "postgresql", "kubernetes"],
-    experience: 8,
-    location: "Ghana",
-    source: "GlobalDataset"
-  },
-  {
-    name: "Mina Sato",
-    headline: "AI Application Developer",
-    skills: ["python", "fastapi", "llm", "vector db", "redis"],
-    experience: 5,
-    location: "Japan",
-    source: "GlobalDataset"
-  }
-];
-
 const normalizeSkill = (value) => String(value || "").trim().toLowerCase();
 
 const normalizeCandidate = (candidate) => ({
@@ -146,7 +111,9 @@ const getGithubCandidates = async (jobInput) => {
   }
 
   try {
-    const userSearchResponse = await fetch(`https://api.github.com/search/users?q=${query}&per_page=8`, {
+    // Add a timestamp salt to avoid stale proxy caches and improve freshness.
+    const cacheSalt = Math.floor(Date.now() / (60 * 1000));
+    const userSearchResponse = await fetch(`https://api.github.com/search/users?q=${query}+in:bio&per_page=8&page=1&sort=followers&order=desc&_=${cacheSalt}`, {
       headers
     });
 
@@ -193,26 +160,12 @@ const getGithubCandidates = async (jobInput) => {
   }
 };
 
-const getKaggleCandidates = () => {
-  return [
-    normalizeCandidate({
-      name: "Nora Kim",
-      headline: "Kaggle Competition Expert",
-      skills: ["python", "machine learning", "xgboost", "feature engineering"],
-      experience: 4,
-      location: "South Korea",
-      source: "Kaggle"
-    }),
-    normalizeCandidate({
-      name: "Luca Bianchi",
-      headline: "Data Scientist",
-      skills: ["python", "tensorflow", "pytorch", "nlp"],
-      experience: 5,
-      location: "Italy",
-      source: "Kaggle"
-    })
-  ];
+const getKaggleCandidates = async () => {
+  // Real-time mode: only return live data sources. Kaggle public profile API is optional and disabled by default.
+  return [];
 };
+
+// Removed buildFallbackGlobalCandidates function as it is no longer needed.
 
 const dedupeCandidates = (candidates) => {
   const seen = new Set();
@@ -229,21 +182,17 @@ const dedupeCandidates = (candidates) => {
 };
 
 export const runGlobalTalentSearch = async (jobInput, recruiterId) => {
-  const [internalResult, githubResult] = await Promise.allSettled([
+  const [internalResult, githubResult, kaggleResult] = await Promise.allSettled([
     getInternalCandidates(jobInput),
-    getGithubCandidates(jobInput)
+    getGithubCandidates(jobInput),
+    getKaggleCandidates(jobInput)
   ]);
 
   const internalCandidates = internalResult.status === "fulfilled" ? internalResult.value : [];
   const githubCandidates = githubResult.status === "fulfilled" ? githubResult.value : [];
-  const kaggleCandidates = getKaggleCandidates();
+  const kaggleCandidates = kaggleResult.status === "fulfilled" ? kaggleResult.value : [];
 
-  const combined = dedupeCandidates([
-    ...internalCandidates,
-    ...githubCandidates,
-    ...kaggleCandidates,
-    ...SAMPLE_GLOBAL_CANDIDATES.map(normalizeCandidate)
-  ]);
+  const combined = dedupeCandidates([...internalCandidates, ...githubCandidates, ...kaggleCandidates]);
 
   const scored = combined
     .map((candidate) => {
@@ -276,6 +225,7 @@ export const runGlobalTalentSearch = async (jobInput, recruiterId) => {
   logInfo("Global talent discovery completed", {
     recruiterId,
     role: jobInput.role,
+    liveCount: combined.length,
     totalCollected: combined.length,
     returned: ranked.length
   });
@@ -284,6 +234,7 @@ export const runGlobalTalentSearch = async (jobInput, recruiterId) => {
     role: jobInput.role,
     total_candidates: ranked.length,
     searched_at: new Date().toISOString(),
+    realtime_only: true,
     diversity_sources: Array.from(new Set(ranked.map((item) => item.source))),
     results: ranked
   };
