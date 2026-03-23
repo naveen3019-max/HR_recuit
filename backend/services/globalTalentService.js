@@ -2,6 +2,7 @@ import prisma from "../config/db.js";
 import { logInfo } from "../utils/logger.js";
 import { scoreGlobalTalentCandidate } from "./candidateMatchingService.js";
 import { fetchGithubCandidates } from "./githubService.js";
+import { fetchProxycurlCandidates } from "./proxycurlService.js";
 
 const normalizeSkill = (value) => String(value || "").trim().toLowerCase();
 
@@ -279,7 +280,11 @@ const pickBalancedTopCandidates = (scoredCandidates, limit = 10) => {
 
 export const runGlobalTalentSearch = async (jobInput, recruiterId) => {
   const technical = isTechnicalRole(jobInput.role, jobInput.skills || []);
-  const sourcePromises = [getInternalCandidates(jobInput), getKaggleCandidates(jobInput)];
+  const sourcePromises = [
+    getInternalCandidates(jobInput), 
+    getKaggleCandidates(jobInput),
+    fetchProxycurlCandidates(jobInput.role, jobInput.skills || []) // Always search Proxycurl (LinkedIn data)
+  ];
 
   if (technical) {
     sourcePromises.push(getGithubCandidatesForJob(jobInput));
@@ -287,13 +292,14 @@ export const runGlobalTalentSearch = async (jobInput, recruiterId) => {
     sourcePromises.push(Promise.resolve(generateTemplateCandidates(jobInput, 12)));
   }
 
-  const [internalResult, kaggleResult, thirdSourceResult] = await Promise.allSettled(sourcePromises);
+  const [internalResult, kaggleResult, proxycurlResult, fourthSourceResult] = await Promise.allSettled(sourcePromises);
 
   const internalCandidates = internalResult.status === "fulfilled" ? internalResult.value : [];
   const kaggleCandidates = kaggleResult.status === "fulfilled" ? kaggleResult.value : [];
-  const dynamicCandidates = thirdSourceResult.status === "fulfilled" ? thirdSourceResult.value : [];
+  const proxycurlCandidates = proxycurlResult.status === "fulfilled" ? proxycurlResult.value : [];
+  const dynamicCandidates = fourthSourceResult.status === "fulfilled" ? fourthSourceResult.value : [];
 
-  const combined = dedupeCandidates([...internalCandidates, ...dynamicCandidates, ...kaggleCandidates]);
+  const combined = dedupeCandidates([...internalCandidates, ...proxycurlCandidates, ...dynamicCandidates, ...kaggleCandidates]);
 
   const scored = combined
     .map((candidate) => {

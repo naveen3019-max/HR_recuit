@@ -16,6 +16,7 @@ const env = {
   linkedinApiBaseUrl: process.env.LINKEDIN_API_BASE_URL || "https://api.linkedin.com/v2",
   linkedinApiToken: process.env.LINKEDIN_API_TOKEN || null,
   linkedinExtensionApiKey: process.env.LINKEDIN_EXTENSION_API_KEY || null,
+  proxycurlApiKey: process.env.PROXYCURL_API_KEY || null,
   jobPlatformLookupApiUrl: process.env.JOB_PLATFORM_LOOKUP_API_URL || null,
   jobPlatformLookupApiToken: process.env.JOB_PLATFORM_LOOKUP_API_TOKEN || null,
   llmApiUrl: (process.env.LLM_API_URL || "").replace(/\/+$/, "") || null,
