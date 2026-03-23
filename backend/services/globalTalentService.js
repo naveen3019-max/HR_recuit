@@ -64,7 +64,25 @@ const getInternalCandidates = async (jobInput) => {
     take: 40
   });
 
-  return records.map((candidate) =>
+  // Fallback: if strict skill/location filter yields no rows, use recent open candidates.
+  const finalRecords = records.length
+    ? records
+    : await prisma.candidate.findMany({
+        where: {
+          OR: [{ openToWork: true }, { linkedinUrl: { not: null } }]
+        },
+        select: {
+          name: true,
+          currentRole: true,
+          skills: true,
+          experienceYears: true,
+          location: true
+        },
+        orderBy: { createdAt: "desc" },
+        take: 40
+      });
+
+  return finalRecords.map((candidate) =>
     normalizeCandidate({
       name: candidate.name,
       headline: candidate.currentRole,
@@ -78,11 +96,23 @@ const getInternalCandidates = async (jobInput) => {
 };
 
 const getGithubCandidatesForJob = async (jobInput) => {
-  const firstSkill = (jobInput.skills || []).find((skill) => normalizeSkill(skill));
-  if (!firstSkill) return [];
+  const searchTerms = [
+    ...(jobInput.skills || []).slice(0, 3),
+    jobInput.role
+  ]
+    .map((term) => normalizeSkill(term))
+    .filter(Boolean);
 
-  const githubCandidates = await fetchGithubCandidates(firstSkill);
-  return githubCandidates.map((candidate) => normalizeCandidate(candidate));
+  if (!searchTerms.length) return [];
+
+  const allResults = await Promise.all(
+    searchTerms.map(async (term) => {
+      const candidates = await fetchGithubCandidates(term);
+      return candidates.map((candidate) => normalizeCandidate(candidate));
+    })
+  );
+
+  return dedupeCandidates(allResults.flat());
 };
 
 const getKaggleCandidates = async () => [];
@@ -152,6 +182,9 @@ export const runGlobalTalentSearch = async (jobInput, recruiterId) => {
     total_candidates: ranked.length,
     searched_at: new Date().toISOString(),
     realtime_only: true,
+    message: ranked.length === 0
+      ? "No real-time candidates found for the current filters. Try broader skills/role or add internal candidates."
+      : "Global candidates fetched in real time.",
     diversity_sources: Array.from(new Set(ranked.map((item) => item.source))),
     results: ranked
   };
