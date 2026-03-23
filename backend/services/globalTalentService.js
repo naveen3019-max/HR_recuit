@@ -288,6 +288,11 @@ export const runGlobalTalentSearch = async (jobInput, recruiterId) => {
     getInternalCandidates(jobInput), 
     getKaggleCandidates(jobInput),
     fetchProxycurlCandidates(jobInput.role, jobInput.skills || [], jobInput.location) // Always search Proxycurl (LinkedIn data)
+  ];
+
+  if (technical) {
+    sourcePromises.push(getGithubCandidatesForJob(jobInput));
+  } else {
     sourcePromises.push(Promise.resolve(generateTemplateCandidates(jobInput, 12)));
   }
 
