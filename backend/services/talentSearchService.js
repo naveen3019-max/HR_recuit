@@ -2,6 +2,7 @@ import prisma from "../config/db.js";
 import env from "../config/env.js";
 import { ApiError } from "../utils/apiError.js";
 import { logError, logInfo } from "../utils/logger.js";
+import { runGlobalTalentSearch } from "./globalTalentService.js";
 
 const parseExperienceValue = (experienceText) => {
   if (!experienceText) return 0;
@@ -414,4 +415,16 @@ export const updateTalentSearchMatch = async (matchId, payload, recruiterId) => 
   });
 
   return mapTalentMatch(updated);
+};
+
+export const globalTalentSearch = async ({ role, skills, location, experience_required }, recruiterId) => {
+  return runGlobalTalentSearch(
+    {
+      role,
+      skills,
+      location,
+      experience_required
+    },
+    recruiterId
+  );
 };

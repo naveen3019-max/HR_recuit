@@ -29,6 +29,19 @@ const scoreLocation = (jobLocation, candidateLocation) => {
   return candidateLocation.toLowerCase().includes(jobLocation.toLowerCase()) ? 100 : 0;
 };
 
+const scoreRoleMatch = (targetRole, candidateHeadline) => {
+  const expected = String(targetRole || "").toLowerCase().trim();
+  const actual = String(candidateHeadline || "").toLowerCase().trim();
+  if (!expected || !actual) return 0;
+  if (actual.includes(expected) || expected.includes(actual)) return 100;
+
+  const expectedTokens = expected.split(/\s+/).filter(Boolean);
+  const actualSet = new Set(actual.split(/\s+/).filter(Boolean));
+  const matched = expectedTokens.filter((token) => actualSet.has(token)).length;
+  if (!expectedTokens.length) return 0;
+  return Math.round((matched / expectedTokens.length) * 100);
+};
+
 export const scoreGlobalCandidateProfile = (jobInput, candidate) => {
   const requiredSkills = normalizeSkills(
     Array.isArray(jobInput.skills) ? jobInput.skills : jobInput.required_skills || []
@@ -41,6 +54,22 @@ export const scoreGlobalCandidateProfile = (jobInput, candidate) => {
   const locationScore = scoreLocation(jobInput.location || "", candidate.location || "");
 
   return Math.round(skillsScore * 0.6 + experienceScore * 0.2 + locationScore * 0.2);
+};
+
+export const scoreGlobalTalentCandidate = (jobInput, candidate) => {
+  const requiredSkills = normalizeSkills(
+    Array.isArray(jobInput.skills) ? jobInput.skills : jobInput.required_skills || []
+  );
+
+  const candidateSkills = Array.isArray(candidate.skills) ? candidate.skills : [];
+  const skillsScore = scoreSkills(requiredSkills, candidateSkills);
+  const roleScore = scoreRoleMatch(jobInput.role || jobInput.job_title || "", candidate.headline || candidate.role || "");
+  const experienceScore = scoreExperience(
+    Number(jobInput.experience_required || jobInput.minimum_experience || 0),
+    Number(candidate.experience || candidate.experience_years || 0)
+  );
+
+  return Math.round(skillsScore * 0.6 + roleScore * 0.25 + experienceScore * 0.15);
 };
 
 const fetchGithubSignals = async (githubUrl) => {

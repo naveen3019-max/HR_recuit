@@ -205,7 +205,7 @@ const TalentSearch = () => {
     event.preventDefault();
     setError(null);
     setGlobalSearching(true);
-    setGlobalLoadingMessage("Searching global talent pool...");
+    setGlobalLoadingMessage("🌍 Searching global talent...");
     let analyzingTimer;
 
     try {
@@ -217,7 +217,7 @@ const TalentSearch = () => {
       };
 
       analyzingTimer = setTimeout(() => {
-        setGlobalLoadingMessage("Analyzing candidates worldwide...");
+        setGlobalLoadingMessage("🧠 AI analyzing candidates...");
       }, 900);
 
       const { data } = await api.post("/talent/global-search", payload);
@@ -231,7 +231,7 @@ const TalentSearch = () => {
         recommendation: item.score >= 75 ? "Strong Fit" : item.score >= 50 ? "Moderate" : "Low",
         reason: item.summary,
         source: item.source || "GlobalDataset",
-        profile_url: null,
+        profile_url: item.profileUrl || null,
         globalId: `${item.name}-${item.source}-${index}`
       }));
 
@@ -441,7 +441,7 @@ const TalentSearch = () => {
 
             {globalSearching && (
               <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs font-medium text-sky-700">
-                {globalLoadingMessage || "Searching global talent pool..."}
+                {globalLoadingMessage || "🌍 Searching global talent..."}
               </div>
             )}
           </form>
@@ -475,7 +475,12 @@ const TalentSearch = () => {
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
                 {linkedinMatches.map((candidate, index) => (
-                  <article key={candidate.globalId || `${candidate.name}-${index}`} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
+                  <article
+                    key={candidate.globalId || `${candidate.name}-${index}`}
+                    className={`rounded-2xl border bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${
+                      index < 3 ? "border-emerald-200 ring-1 ring-emerald-100" : "border-gray-100"
+                    }`}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <h3 className="text-base font-semibold text-gray-900">{candidate.name}</h3>

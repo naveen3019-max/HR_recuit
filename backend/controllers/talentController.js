@@ -1,8 +1,8 @@
 import {
+  globalTalentSearch,
   runTalentSearch,
   updateTalentSearchMatch
 } from "../services/talentSearchService.js";
-import { runGlobalTalentSearch } from "../services/globalTalentService.js";
 
 export const talentSearchHandler = async (req, res, next) => {
   try {
@@ -24,7 +24,7 @@ export const updateTalentMatchHandler = async (req, res, next) => {
 
 export const globalTalentSearchHandler = async (req, res, next) => {
   try {
-    const result = await runGlobalTalentSearch(req.validated.body, req.user.id);
+    const result = await globalTalentSearch(req.validated.body, req.user.id);
     return res.json(result);
   } catch (error) {
     return next(error);
