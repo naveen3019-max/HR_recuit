@@ -205,7 +205,7 @@ const TalentSearch = () => {
     event.preventDefault();
     setError(null);
     setGlobalSearching(true);
-    setGlobalLoadingMessage("🌍 Searching global talent...");
+    setGlobalLoadingMessage("Scanning global talent...");
     let analyzingTimer;
 
     try {
@@ -217,7 +217,7 @@ const TalentSearch = () => {
       };
 
       analyzingTimer = setTimeout(() => {
-        setGlobalLoadingMessage("🧠 AI analyzing candidates...");
+        setGlobalLoadingMessage("AI analyzing candidates...");
       }, 900);
 
       const { data } = await api.post("/talent/global-search", payload);
@@ -441,7 +441,7 @@ const TalentSearch = () => {
 
             {globalSearching && (
               <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs font-medium text-sky-700">
-                {globalLoadingMessage || "🌍 Searching global talent..."}
+                {globalLoadingMessage || "Scanning global talent..."}
               </div>
             )}
           </form>
