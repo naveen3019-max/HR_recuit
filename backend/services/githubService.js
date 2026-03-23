@@ -91,21 +91,34 @@ export const fetchGithubCandidates = async (skill) => {
   }
 
   try {
-    const query = encodeURIComponent(`${normalizedSkill}+followers:>1`);
-    const response = await fetch(`https://api.github.com/search/users?q=${query}+in:bio+type:user&per_page=8`, {
+    // 1st Pass: Specifically target developers looking for jobs using common bio tags
+    const jobSeekingQuery = encodeURIComponent(`"${normalizedSkill}" followers:>1 "open to work" in:bio type:user`);
+    let response = await fetch(`https://api.github.com/search/users?q=${jobSeekingQuery}&per_page=8`, {
       headers
     });
+    
+    let body = response.ok ? await response.json() : null;
+    let users = Array.isArray(body?.items) ? body.items : [];
 
-    if (!response.ok) {
-      logError("GitHub search API failed", {
-        status: response.status,
-        skill: normalizedSkill
-      });
-      return [];
+    // Fallback if no specific "open to work" candidates found
+    if (users.length === 0) {
+      logInfo("No explicit job seekers found, falling back to broader search", { skill: normalizedSkill });
+      const baseQuery = encodeURIComponent(`"${normalizedSkill}" followers:>1 in:bio type:user`);
+      response = await fetch(`https://api.github.com/search/users?q=${baseQuery}&per_page=8`, { headers });
+      
+      if (!response.ok) {
+        logError("GitHub search API failed", {
+          status: response.status,
+          skill: normalizedSkill
+        });
+        return [];
+      }
+
+      body = await response.json();
+      users = Array.isArray(body?.items) ? body.items : [];
     }
 
-    const body = await response.json();
-    const users = Array.isArray(body.items) ? body.items : [];
+
 
     const enriched = await Promise.all(
       users.slice(0, 8).map(async (user) => {
