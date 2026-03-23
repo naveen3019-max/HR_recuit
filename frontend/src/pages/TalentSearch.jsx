@@ -26,6 +26,7 @@ const TalentSearch = () => {
   const [results, setResults] = useState([]);
   const [savingMatchId, setSavingMatchId] = useState(null);
   const [skillInput, setSkillInput] = useState("");
+  const [lastGlobalPayload, setLastGlobalPayload] = useState(null);
 
   const [formData, setFormData] = useState({
     role: "",
@@ -215,6 +216,7 @@ const TalentSearch = () => {
         location: formData.location.trim(),
         experience_required: Number(formData.experience_required.match(/\d+/)?.[0] || 0)
       };
+      setLastGlobalPayload(payload);
 
       analyzingTimer = setTimeout(() => {
         setGlobalLoadingMessage("AI analyzing candidates...");
@@ -230,7 +232,7 @@ const TalentSearch = () => {
         score: Number(item.score || 0),
         recommendation: item.score >= 75 ? "Strong Fit" : item.score >= 50 ? "Moderate" : "Low",
         reason: item.summary,
-        source: item.source || "GlobalDataset",
+        source: item.source || "Global Talent",
         profile_url: item.profileUrl || null,
         globalId: `${item.name}-${item.source}-${index}`
       }));
@@ -241,12 +243,43 @@ const TalentSearch = () => {
       setLinkedinSearchActive(false);
       stopLinkedinPolling();
       stopStatusPolling();
-      setLinkedinSearchMessage("Global talent search completed");
+      setLinkedinSearchMessage(data?.message || "Global talent search completed");
     } catch (err) {
       if (analyzingTimer) clearTimeout(analyzingTimer);
       setError(err.response?.data?.message || "Global search failed. Please retry.");
     } finally {
       if (analyzingTimer) clearTimeout(analyzingTimer);
+      setGlobalSearching(false);
+      setGlobalLoadingMessage("");
+    }
+  };
+
+  const refreshGlobalSearch = async () => {
+    if (!lastGlobalPayload) return;
+    setError(null);
+    setGlobalSearching(true);
+    setGlobalLoadingMessage("Scanning global talent...");
+
+    try {
+      const { data } = await api.post("/talent/global-search", lastGlobalPayload);
+      const normalized = (data?.results || []).map((item, index) => ({
+        name: item.name,
+        headline: item.headline,
+        location: item.location || "Global",
+        score: Number(item.score || 0),
+        recommendation: item.score >= 75 ? "Strong Fit" : item.score >= 50 ? "Moderate" : "Low",
+        reason: item.summary,
+        source: item.source || "Global Talent",
+        profile_url: item.profileUrl || null,
+        globalId: `${item.name}-${item.source}-${index}`
+      }));
+
+      setLinkedinMatches(normalized);
+      setLinkedinCandidates(normalized);
+      setLinkedinSearchMessage(data?.message || "Global talent search refreshed");
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to refresh global search.");
+    } finally {
       setGlobalSearching(false);
       setGlobalLoadingMessage("");
     }
@@ -320,9 +353,9 @@ const TalentSearch = () => {
         <div className="flex flex-col gap-6 bg-linear-to-br from-slate-900 via-slate-800 to-slate-900 p-6 text-white md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.25em] text-slate-300">AI Recruitment</p>
-            <h1 className="mt-2 text-3xl font-semibold">Live LinkedIn Talent Search 🚀</h1>
+            <h1 className="mt-2 text-3xl font-semibold">Global Talent Discovery Engine 🌍</h1>
             <p className="mt-2 max-w-xl text-sm text-slate-200">
-              Launch a LinkedIn search, let the extension analyze visible profiles, and watch candidates appear in real time.
+              Search real global candidates from public sources and internal talent, then rank them with AI.
             </p>
           </div>
           <div className="flex flex-col items-start gap-3 md:items-end">
@@ -354,7 +387,7 @@ const TalentSearch = () => {
               />
               <span>
                 {linkedinLoading
-                  ? "Scanning LinkedIn profiles..."
+                  ? "Scanning global talent..."
                   : linkedinMatches.length > 0
                     ? "Candidates found"
                     : linkedinSearchMessage}
@@ -452,7 +485,7 @@ const TalentSearch = () => {
                 <h2 className="text-lg font-semibold text-gray-900">Global Talent Results</h2>
                 <p className="text-sm text-gray-500">AI-ranked candidates aggregated across internal and global sources.</p>
               </div>
-              <button type="button" onClick={loadLinkedinCandidates} className="btn-secondary px-3 py-2 text-xs">
+              <button type="button" onClick={refreshGlobalSearch} className="btn-secondary px-3 py-2 text-xs" disabled={!lastGlobalPayload || globalSearching}>
                 Refresh
               </button>
             </div>
