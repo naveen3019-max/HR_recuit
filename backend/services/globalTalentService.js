@@ -118,17 +118,50 @@ const getGithubCandidatesForJob = async (jobInput) => {
 const getKaggleCandidates = async () => [];
 
 const dedupeCandidates = (candidates) => {
-  const seen = new Set();
-  const output = [];
+  const merged = new Map();
 
   for (const candidate of candidates) {
     const key = `${candidate.name.toLowerCase()}::${candidate.source}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    output.push(candidate);
+    const existing = merged.get(key);
+
+    if (!existing) {
+      merged.set(key, {
+        ...candidate,
+        skills: Array.isArray(candidate.skills) ? [...candidate.skills] : []
+      });
+      continue;
+    }
+
+    const mergedSkills = new Set([...(existing.skills || []), ...(candidate.skills || [])]);
+    merged.set(key, {
+      ...existing,
+      headline:
+        existing.headline && existing.headline !== "Talent Profile"
+          ? existing.headline
+          : candidate.headline || existing.headline,
+      experience: Math.max(Number(existing.experience || 0), Number(candidate.experience || 0)),
+      location: existing.location || candidate.location || "",
+      profileUrl: existing.profileUrl || candidate.profileUrl || null,
+      skills: Array.from(mergedSkills)
+    });
   }
 
-  return output;
+  return Array.from(merged.values());
+};
+
+const pickBalancedTopCandidates = (scoredCandidates, limit = 10) => {
+  const external = scoredCandidates.filter((candidate) => candidate.source !== "Internal");
+  const internal = scoredCandidates.filter((candidate) => candidate.source === "Internal");
+  const minExternal = Math.min(4, external.length);
+
+  const seeded = external.slice(0, minExternal);
+  const usedKeys = new Set(seeded.map((candidate) => `${candidate.name}::${candidate.source}`));
+
+  const remainder = [...external.slice(minExternal), ...internal].filter(
+    (candidate) => !usedKeys.has(`${candidate.name}::${candidate.source}`)
+  );
+
+  return [...seeded, ...remainder].slice(0, limit);
 };
 
 export const runGlobalTalentSearch = async (jobInput, recruiterId) => {
@@ -159,7 +192,7 @@ export const runGlobalTalentSearch = async (jobInput, recruiterId) => {
     })
     .sort((a, b) => b.score - a.score);
 
-  const ranked = scored.slice(0, 10).map((candidate) => ({
+  const ranked = pickBalancedTopCandidates(scored, 10).map((candidate) => ({
     name: candidate.name,
     headline: candidate.headline,
     location: candidate.location,

@@ -43,8 +43,8 @@ export const fetchGithubCandidates = async (skill) => {
   }
 
   try {
-    const query = encodeURIComponent(`${normalizedSkill}+followers:>10`);
-    const response = await fetch(`https://api.github.com/search/users?q=${query}&per_page=5`, {
+    const query = encodeURIComponent(`${normalizedSkill}+followers:>1`);
+    const response = await fetch(`https://api.github.com/search/users?q=${query}&per_page=8`, {
       headers
     });
 
