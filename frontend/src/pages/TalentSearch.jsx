@@ -360,18 +360,10 @@ const TalentSearch = () => {
           </div>
           <div className="flex flex-col items-start gap-3 md:items-end">
             <button
-              type="submit"
-              form="talent-search-form"
-              disabled={loading || getPreparedSkills().length === 0 || !formData.role.trim()}
-              className="btn-primary px-6 py-3 text-sm"
-            >
-              {loading ? "Starting Search..." : "Auto Search LinkedIn"}
-            </button>
-            <button
               type="button"
               onClick={handleGlobalSearch}
               disabled={globalSearching || getPreparedSkills().length === 0 || !formData.role.trim()}
-              className="btn-secondary px-6 py-3 text-sm"
+              className="btn-primary px-6 py-3 text-sm"
             >
               {globalSearching ? "Searching Global Talent..." : "Find Global Talent 🌍"}
             </button>
@@ -466,10 +458,6 @@ const TalentSearch = () => {
                 className="input-field rounded-xl"
                 required
               />
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-              {searchRequestId ? `Search Request: ${searchRequestId}` : "No active background request"}
             </div>
 
             {globalSearching && (
