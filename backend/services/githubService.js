@@ -8,6 +8,54 @@ let githubWindowCount = 0;
 
 const normalizeSkill = (value) => String(value || "").trim().toLowerCase();
 
+const extractRepoSkills = (repos = []) => {
+  const skills = new Set();
+
+  for (const repo of repos) {
+    if (repo?.language) {
+      skills.add(normalizeSkill(repo.language));
+    }
+
+    const topics = Array.isArray(repo?.topics) ? repo.topics : [];
+    for (const topic of topics) {
+      skills.add(normalizeSkill(topic));
+    }
+  }
+
+  return Array.from(skills).filter(Boolean).slice(0, 12);
+};
+
+const estimateExperienceYears = (profile, repos) => {
+  const createdAt = profile?.created_at ? new Date(profile.created_at) : null;
+  const accountYears = createdAt ? Math.max(1, Math.round((Date.now() - createdAt.getTime()) / (365 * 24 * 60 * 60 * 1000))) : 1;
+  const repoCount = Array.isArray(repos) ? repos.length : 0;
+
+  if (repoCount >= 30) return Math.max(6, accountYears);
+  if (repoCount >= 15) return Math.max(4, Math.min(8, accountYears));
+  if (repoCount >= 8) return Math.max(3, Math.min(6, accountYears));
+  return Math.max(2, Math.min(5, accountYears));
+};
+
+const buildCandidateFromGithub = (user, profile, repos, seedSkill) => {
+  const extractedSkills = extractRepoSkills(repos);
+  if (seedSkill) {
+    extractedSkills.unshift(normalizeSkill(seedSkill));
+  }
+
+  const uniqueSkills = Array.from(new Set(extractedSkills)).filter(Boolean);
+  const headline = profile?.bio?.trim() || "Software Developer (GitHub)";
+
+  return {
+    name: profile?.name || user.login,
+    headline,
+    location: profile?.location || "Global",
+    skills: uniqueSkills.length ? uniqueSkills : [normalizeSkill(seedSkill)],
+    experience: estimateExperienceYears(profile, repos),
+    source: "GitHub",
+    profileUrl: user.html_url
+  };
+};
+
 const isGithubRateLimited = () => {
   const now = Date.now();
   if (now - githubWindowStart > RATE_LIMIT_WINDOW_MS) {
@@ -44,7 +92,7 @@ export const fetchGithubCandidates = async (skill) => {
 
   try {
     const query = encodeURIComponent(`${normalizedSkill}+followers:>1`);
-    const response = await fetch(`https://api.github.com/search/users?q=${query}&per_page=8`, {
+    const response = await fetch(`https://api.github.com/search/users?q=${query}+in:bio+type:user&per_page=8`, {
       headers
     });
 
@@ -59,15 +107,34 @@ export const fetchGithubCandidates = async (skill) => {
     const body = await response.json();
     const users = Array.isArray(body.items) ? body.items : [];
 
-    return users.map((user) => ({
-      name: user.login,
-      headline: "Software Developer (GitHub)",
-      location: "Global",
-      skills: [normalizedSkill],
-      experience: 2,
-      source: "GitHub",
-      profileUrl: user.html_url
-    }));
+    const enriched = await Promise.all(
+      users.slice(0, 8).map(async (user) => {
+        try {
+          const [profileResponse, reposResponse] = await Promise.all([
+            fetch(`https://api.github.com/users/${encodeURIComponent(user.login)}`, { headers }),
+            fetch(`https://api.github.com/users/${encodeURIComponent(user.login)}/repos?per_page=20&sort=updated`, {
+              headers
+            })
+          ]);
+
+          const profile = profileResponse.ok ? await profileResponse.json() : null;
+          const repos = reposResponse.ok ? await reposResponse.json() : [];
+          return buildCandidateFromGithub(user, profile, Array.isArray(repos) ? repos : [], normalizedSkill);
+        } catch {
+          return {
+            name: user.login,
+            headline: "Software Developer (GitHub)",
+            location: "Global",
+            skills: [normalizedSkill],
+            experience: 2,
+            source: "GitHub",
+            profileUrl: user.html_url
+          };
+        }
+      })
+    );
+
+    return enriched;
   } catch (error) {
     logError("GitHub source failed", {
       error: error.message,

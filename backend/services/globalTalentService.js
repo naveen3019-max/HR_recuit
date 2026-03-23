@@ -190,6 +190,7 @@ export const runGlobalTalentSearch = async (jobInput, recruiterId) => {
         profileUrl: candidate.profileUrl || null
       };
     })
+    .filter((candidate) => candidate.score >= 25)
     .sort((a, b) => b.score - a.score);
 
   const ranked = pickBalancedTopCandidates(scored, 10).map((candidate) => ({
