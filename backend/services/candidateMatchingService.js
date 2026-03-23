@@ -26,7 +26,24 @@ const scoreExperience = (minimumExperience, candidateExperience) => {
 const scoreLocation = (jobLocation, candidateLocation) => {
   if (!jobLocation) return 100;
   if (!candidateLocation) return 0;
-  return candidateLocation.toLowerCase().includes(jobLocation.toLowerCase()) ? 100 : 0;
+  
+  const jobLocStr = jobLocation.toLowerCase().trim();
+  const candLocStr = candidateLocation.toLowerCase().trim();
+
+  if (candLocStr.includes(jobLocStr) || jobLocStr.includes(candLocStr)) {
+    return 100;
+  }
+  
+  // Partial word match (e.g. "san francisco" and "san-francisco")
+  const jobTokens = jobLocStr.split(/\s+|,|-/);
+  const candTokens = candLocStr.split(/\s+|,|-/);
+  
+  const matchCount = jobTokens.filter(token => candTokens.includes(token)).length;
+  if (matchCount > 0) {
+    return Math.round((matchCount / Math.max(jobTokens.length, candTokens.length)) * 100) + 20; // boost partial match
+  }
+
+  return 0;
 };
 
 const scoreRoleMatch = (targetRole, candidateHeadline) => {
@@ -69,7 +86,13 @@ export const scoreGlobalTalentCandidate = (jobInput, candidate) => {
     Number(candidate.experience || candidate.experience_years || 0)
   );
 
-  return Math.round(skillsScore * 0.6 + roleScore * 0.25 + experienceScore * 0.15);
+  if (jobInput.location) {
+    const locScore = scoreLocation(jobInput.location, candidate.location);
+    // Increased weight for location to ensure localized candidates float to the top
+    return Math.round(skillsScore * 0.5 + roleScore * 0.2 + experienceScore * 0.1 + locScore * 0.2);
+  } else {
+    return Math.round(skillsScore * 0.6 + roleScore * 0.25 + experienceScore * 0.15);
+  }
 };
 
 const fetchGithubSignals = async (githubUrl) => {

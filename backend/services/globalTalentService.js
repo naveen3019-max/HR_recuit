@@ -97,7 +97,7 @@ const generateTemplateCandidates = (jobInput, count = 12, mode = "non-technical"
     const first = FIRST_NAMES[seed % FIRST_NAMES.length];
     const last = LAST_NAMES[(seed + 3) % LAST_NAMES.length];
     const title = template.titles[index % template.titles.length];
-    const location = jobInput.location && index % 3 === 0
+    const location = jobInput.location && index % 4 !== 0
       ? jobInput.location
       : GLOBAL_CITIES[(seed + index) % GLOBAL_CITIES.length];
     const expRange = template.maxExp - template.minExp + 1;
@@ -135,8 +135,12 @@ const buildSummary = (jobInput, candidate, score) => {
   const roleBit = String(candidate.headline || "").toLowerCase().includes(String(jobInput.role || "").toLowerCase())
     ? "role aligned"
     : "adjacent role fit";
+    
+  const locBit = jobInput.location && String(candidate.location || "").toLowerCase().includes(String(jobInput.location).toLowerCase())
+    ? ` within ${jobInput.location}`
+    : "";
 
-  return `Strong match due to ${matched}/${required.length || 0} required skills, ${candidate.experience} years experience, and ${roleBit}.`;
+  return `Strong match due to ${matched}/${required.length || 0} required skills, ${candidate.experience} years experience, ${roleBit}${locBit ? "," + locBit : ""}.`;
 };
 
 const getInternalCandidates = async (jobInput) => {
@@ -221,7 +225,7 @@ const getGithubCandidatesForJob = async (jobInput) => {
 
   const allResults = await Promise.all(
     searchTerms.map(async (term) => {
-      const candidates = await fetchGithubCandidates(term);
+      const candidates = await fetchGithubCandidates(term, jobInput.location);
       return candidates.map((candidate) => normalizeCandidate(candidate));
     })
   );
@@ -283,12 +287,7 @@ export const runGlobalTalentSearch = async (jobInput, recruiterId) => {
   const sourcePromises = [
     getInternalCandidates(jobInput), 
     getKaggleCandidates(jobInput),
-    fetchProxycurlCandidates(jobInput.role, jobInput.skills || []) // Always search Proxycurl (LinkedIn data)
-  ];
-
-  if (technical) {
-    sourcePromises.push(getGithubCandidatesForJob(jobInput));
-  } else {
+    fetchProxycurlCandidates(jobInput.role, jobInput.skills || [], jobInput.location) // Always search Proxycurl (LinkedIn data)
     sourcePromises.push(Promise.resolve(generateTemplateCandidates(jobInput, 12)));
   }
 

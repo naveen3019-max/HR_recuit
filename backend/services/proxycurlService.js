@@ -5,7 +5,7 @@ import { logError, logInfo } from "../utils/logger.js";
  * Service to interact with Proxycurl Employee Search API
  * Documentation: https://nubela.co/proxycurl/docs#people-api-employee-search-api-endpoint
  */
-export const fetchProxycurlCandidates = async (jobRole, requiredSkills = []) => {
+export const fetchProxycurlCandidates = async (jobRole, requiredSkills = [], location = "") => {
   if (!env.proxycurlApiKey) {
     logInfo("Proxycurl API key not configured, skipping proxycurl search");
     return [];
@@ -21,6 +21,11 @@ export const fetchProxycurlCandidates = async (jobRole, requiredSkills = []) => 
     enrich_profiles: "enrich",
     page_size: "10"
   });
+
+  if (location) {
+    // Basic catch-all to try and filter geographically if location provided
+    params.set("country", location);
+  }
 
   const headers = {
     "Authorization": `Bearer ${env.proxycurlApiKey}`,

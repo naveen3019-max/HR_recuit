@@ -67,11 +67,13 @@ const isGithubRateLimited = () => {
   return githubWindowCount > MAX_REQUESTS_PER_WINDOW;
 };
 
-export const fetchGithubCandidates = async (skill) => {
+export const fetchGithubCandidates = async (skill, location = "") => {
   const normalizedSkill = normalizeSkill(skill);
   if (!normalizedSkill) {
     return [];
   }
+
+  const normalizedLocation = String(location || "").trim();
 
   if (isGithubRateLimited()) {
     logInfo("GitHub source temporarily rate-limited", {
@@ -91,8 +93,12 @@ export const fetchGithubCandidates = async (skill) => {
   }
 
   try {
+    // Incorporate location if present
+    const locationQuery = normalizedLocation ? ` location:"${normalizedLocation}"` : "";
+
     // 1st Pass: Specifically target developers looking for jobs using common bio tags
-    const jobSeekingQuery = encodeURIComponent(`"${normalizedSkill}" followers:>1 "open to work" in:bio type:user`);
+    const jobSeekingQuery = encodeURIComponent(`"${normalizedSkill}" followers:>1 "open to work" in:bio type:user`) + (normalizedLocation ? `+location:${encodeURIComponent('"' + normalizedLocation + '"')}` : "");
+    
     let response = await fetch(`https://api.github.com/search/users?q=${jobSeekingQuery}&per_page=8`, {
       headers
     });
@@ -100,10 +106,10 @@ export const fetchGithubCandidates = async (skill) => {
     let body = response.ok ? await response.json() : null;
     let users = Array.isArray(body?.items) ? body.items : [];
 
-    // Fallback if no specific "open to work" candidates found
+    // Fallback if no specific "open to work" candidates found in that location
     if (users.length === 0) {
-      logInfo("No explicit job seekers found, falling back to broader search", { skill: normalizedSkill });
-      const baseQuery = encodeURIComponent(`"${normalizedSkill}" followers:>1 in:bio type:user`);
+      logInfo("No explicit job seekers found, falling back to broader search", { skill: normalizedSkill, location: normalizedLocation });
+      const baseQuery = encodeURIComponent(`"${normalizedSkill}" followers:>1 in:bio type:user`) + (normalizedLocation ? `+location:${encodeURIComponent('"' + normalizedLocation + '"')}` : "");
       response = await fetch(`https://api.github.com/search/users?q=${baseQuery}&per_page=8`, { headers });
       
       if (!response.ok) {
