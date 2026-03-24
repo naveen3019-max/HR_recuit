@@ -555,7 +555,119 @@ const TalentSearch = () => {
         </div>
       </section>
 
-      
+      <section className="card p-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-gray-900">Ranked Candidate Results</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+              <Filter className="h-3.5 w-3.5" />
+              Filters
+            </span>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={filters.minScore}
+              onChange={(event) => setFilters((prev) => ({ ...prev, minScore: event.target.value }))}
+              placeholder="Min score"
+              className="input-field w-28"
+            />
+            <input
+              type="text"
+              value={filters.location}
+              onChange={(event) => setFilters((prev) => ({ ...prev, location: event.target.value }))}
+              placeholder="Location"
+              className="input-field w-36"
+            />
+            <input
+              type="text"
+              value={filters.skill}
+              onChange={(event) => setFilters((prev) => ({ ...prev, skill: event.target.value }))}
+              placeholder="Skill"
+              className="input-field w-32"
+            />
+          </div>
+        </div>
+
+        {filteredResults.length === 0 ? (
+          <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 text-center text-gray-500">
+            <Briefcase className="mb-3 h-10 w-10 text-gray-300" />
+            <p className="text-sm">No candidates to display. Run a search or adjust filters.</p>
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {filteredResults.map((candidate) => (
+              <article key={candidate.match_id} className="rounded-xl border border-gray-100 p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900">{candidate.candidate_name}</h3>
+                    <p className="mt-0.5 text-sm text-gray-500">{candidate.current_role || "Role not specified"}</p>
+                  </div>
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${scorePill(candidate.match_score)}`}>
+                    <Star className="h-3.5 w-3.5" />
+                    {candidate.match_score}%
+                  </span>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-gray-600">
+                  <p>Experience: {candidate.experience_years} years</p>
+                  <p className="inline-flex items-center gap-1">
+                    <MapPin className="h-4 w-4" />
+                    {candidate.location || "N/A"}
+                  </p>
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(candidate.skills || []).slice(0, 6).map((skill) => (
+                    <span key={`${candidate.match_id}-${skill}`} className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-700">
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="mt-3 rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">AI Summary</p>
+                  <p className="mt-1 text-sm text-gray-700">{candidate.candidate_summary}</p>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Link to={`/candidates/${candidate.candidate_id}`} className="btn-secondary px-3 py-2 text-sm">
+                    View Profile
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={() => updateMatch(candidate.match_id, { shortlisted: !candidate.shortlisted })}
+                    disabled={savingMatchId === candidate.match_id}
+                    className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium ${
+                      candidate.shortlisted
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "border-gray-200 bg-white text-gray-700"
+                    }`}
+                  >
+                    <UserCheck className="h-4 w-4" />
+                    {candidate.shortlisted ? "Shortlisted" : "Shortlist Candidate"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => updateMatch(candidate.match_id, { exported: !candidate.saved })}
+                    disabled={savingMatchId === candidate.match_id}
+                    className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium ${
+                      candidate.saved
+                        ? "border-blue-200 bg-blue-50 text-blue-700"
+                        : "border-gray-200 bg-white text-gray-700"
+                    }`}
+                  >
+                    <Save className="h-4 w-4" />
+                    {candidate.saved ? "Saved" : "Save Candidate"}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 };
