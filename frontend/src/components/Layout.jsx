@@ -6,7 +6,6 @@ const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Add Candidate", href: "/add-candidate", icon: UserPlus },
   { name: "Attrition", href: "/attrition", icon: BarChart3 },
-  { name: "Candidate Matching", href: "/candidate-matching", icon: Briefcase },
   { name: "Talent Search", href: "/talent-search", icon: Search },
 ];
 
